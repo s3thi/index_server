@@ -1,0 +1,4 @@
+
+resource app_signature "application/x-vnd.Haiku-BeaconDaemon" ;
+
+resource app_flags B_SINGLE_LAUNCH | B_BACKGROUND_APP ;

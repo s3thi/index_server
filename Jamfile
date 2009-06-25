@@ -1,0 +1,10 @@
+# Jamfile in $(TOP)
+
+LINKLIBS = -lbe -lclucene ;
+C++FLAGS = -ggdb ;
+
+SubDir TOP ;
+
+# Rules go here.
+
+SubInclude TOP src ;

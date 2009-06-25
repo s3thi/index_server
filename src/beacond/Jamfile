@@ -1,0 +1,11 @@
+# Jamfile in $(TOP)/src/beacond
+
+SubDir TOP src beacond ;
+
+Main beacond :
+	Feeder.cpp
+	Indexer.cpp
+	support.cpp
+	main.cpp
+;
+
