@@ -31,6 +31,7 @@ class Indexer : public BApplication {
 		void UpdateIndex() ;
 		void AddDocument(entry_ref *ref) ;
 		bool Excluded(entry_ref *ref) ;
+		void OpenIndex() ;
 
 		Feeder 				fQueryFeeder ;
 		bigtime_t 			fUpdateInterval ;

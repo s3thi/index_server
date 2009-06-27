@@ -14,6 +14,9 @@
 #include <FindDirectory.h>
 #include <Path.h>
 
+#include <iostream>
+using namespace std ;
+
 using namespace lucene::document ;
 
 enum {
@@ -26,36 +29,28 @@ Indexer :: Indexer()
 	  fUpdateInterval(30 * 1000000)
 {
 	BMessage settings('sett') ;
-	if(load_settings(&settings) == B_OK)
+	if (load_settings(&settings) == B_OK)
 		LoadSettings(&settings) ;
 }
 
 
-void Indexer :: ReadyToRun()
+void
+Indexer ::ReadyToRun()
 {
 	fMessageRunner = new BMessageRunner(this, new BMessage(BEACON_UPDATE_INDEX),
 		fUpdateInterval) ;
 	
-	BPath indexPath ;
-	if(find_directory(B_COMMON_DIRECTORY, &indexPath) == B_OK) {
-		indexPath.Append("data/index/") ;
-		if(create_directory(indexPath.Path(), 0777) == B_OK) {
-			// Clobber the index for now.
-			fIndexWriter = new IndexWriter(indexPath.Path(),
-				&fStandardAnalyzer, true) ;
-		} else
-			Quit() ;
-	} else
-		Quit() ;
+	OpenIndex() ;
 
 	fQueryFeeder.StartWatching() ;
 	UpdateIndex() ;
 }
 
 
-void Indexer :: MessageReceived(BMessage *message)
+void
+Indexer :: MessageReceived(BMessage *message)
 {
-	switch(message->what) {
+	switch (message->what) {
 		case BEACON_UPDATE_INDEX :
 			UpdateIndex() ;
 			break ;
@@ -65,7 +60,8 @@ void Indexer :: MessageReceived(BMessage *message)
 }
 
 
-bool Indexer :: QuitRequested()
+bool
+Indexer :: QuitRequested()
 {
 	BMessage settings('sett') ;
 	fQueryFeeder.SaveSettings(&settings) ;
@@ -74,37 +70,42 @@ bool Indexer :: QuitRequested()
 	
 	fQueryFeeder.PostMessage(B_QUIT_REQUESTED) ;
 	
+	fIndexWriter->optimize() ;
 	fIndexWriter->close() ;
 }
 
 
-void Indexer :: SaveSettings(BMessage *settings)
+void
+Indexer :: SaveSettings(BMessage *settings)
 {
 	if(settings->ReplaceInt64("update_interval", fUpdateInterval) != B_OK)
 		settings->AddInt64("update_interval", fUpdateInterval) ;
 }
 
 
-void Indexer :: LoadSettings(BMessage *settings)
+void
+Indexer :: LoadSettings(BMessage *settings)
 {
 	bigtime_t updateInterval ;
-	if(settings->FindInt64("update_interval", &updateInterval) == B_OK)
+	if (settings->FindInt64("update_interval", &updateInterval) == B_OK)
 		fUpdateInterval = updateInterval ;
 }
 
 
-void Indexer :: UpdateIndex()
+void
+Indexer :: UpdateIndex()
 {
 	entry_ref ref ;
-	while(fQueryFeeder.GetNextRef(&ref) == B_OK) {
+	while (fQueryFeeder.GetNextRef(&ref) == B_OK) {
 		AddDocument(&ref) ;
 	}
 }
 
 
-void Indexer :: AddDocument(entry_ref *ref)
+void
+Indexer :: AddDocument(entry_ref *ref)
 {
-	if(Excluded(ref))
+	if (Excluded(ref))
 		return ;
 
 	// This will have to be changed once we add support for
@@ -134,7 +135,8 @@ void Indexer :: AddDocument(entry_ref *ref)
 }
 
 
-bool Indexer :: Excluded(entry_ref *ref)
+bool
+Indexer :: Excluded(entry_ref *ref)
 {
 	// Quick hack for now. This will change in the future to become
 	// more flexible. Only checks for /boot/common/data/index/ to
@@ -142,8 +144,39 @@ bool Indexer :: Excluded(entry_ref *ref)
 	BPath refDirectory(ref) ;
 	refDirectory.GetParent(&refDirectory) ;
 	BPath indexDirectory("/boot/common/data/index/") ;
-	if(refDirectory == indexDirectory)
+	if (refDirectory == indexDirectory)
 		return true ;
 	
 	return false ;
+}
+
+
+void
+Indexer :: OpenIndex()
+{
+	BPath indexPath ;
+	if (find_directory(B_COMMON_DIRECTORY, &indexPath) == B_OK) {
+		indexPath.Append("data/index/") ;
+		if (create_directory(indexPath.Path(), 0777) == B_OK) {
+			try {
+				if (IndexReader::indexExists(indexPath.Path()))
+					fIndexWriter = new IndexWriter(indexPath.Path(),
+						&fStandardAnalyzer, false) ;
+				else
+					fIndexWriter = new IndexWriter(indexPath.Path(),
+						&fStandardAnalyzer, true) ;
+			} catch (CLuceneError) {
+				// Index is corrupted. Delete it.
+				BDirectory indexDirectory(indexPath.Path()) ;
+				BEntry entry ;
+
+				while (indexDirectory.GetNextEntry(&entry, false) == B_OK)
+					entry.Remove() ;
+
+				OpenIndex() ;
+			}
+		} else
+			Quit() ;
+	} else
+		Quit() ;
 }
