@@ -12,6 +12,7 @@
 #include "Feeder.h"
 
 #include <Application.h>
+#include <Locker.h>
 #include <MessageRunner.h>
 
 #include <CLucene.h>
@@ -32,6 +33,8 @@ class Indexer : public BApplication {
 		void AddDocument(entry_ref *ref) ;
 		bool Excluded(entry_ref *ref) ;
 		void OpenIndex() ;
+		bool TranslatorAvailable(entry_ref *ref) ;
+
 
 		Feeder 				fQueryFeeder ;
 		bigtime_t 			fUpdateInterval ;

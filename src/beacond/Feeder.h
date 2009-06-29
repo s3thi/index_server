@@ -30,16 +30,19 @@ class Feeder : public BLooper {
 	private :
 		// Feeder methods
 		void LoadSettings(BMessage *settings) ;
-		bool TranslatorAvailable(entry_ref *ref) ;
 		void AddQuery(BVolume *volume) ;
+		void RemoveQuery(BVolume *volume) ;
 		void RetrieveStaticRefs(BQuery *query) ;
 		void HandleQueryUpdate(BMessage *message) ;
+		void HandleDeviceUpdate(BMessage *message) ;
+		bool Excluded(entry_ref *ref) ;
 
 		// Data members
 		bool			fMonitorRemovableDevices ;
 		BVolumeRoster	fVolumeRoster ;
 		BList			fQueryList ;
 		BList			fEntryList ;
+		BList			fExcludeList ;
 } ;
 
 #endif /* _FEEDER_H_ */

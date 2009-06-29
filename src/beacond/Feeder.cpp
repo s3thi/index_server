@@ -9,23 +9,33 @@
 #include "Feeder.h"
 #include "support.h"
 
+#include <Directory.h>
+#include <FindDirectory.h>
 #include <NodeInfo.h>
 #include <NodeMonitor.h>
 #include <Path.h>
 #include <string.h>
 
-#include <iostream>
-using namespace std ;
 
 Feeder :: Feeder()
 	: BLooper("feeder"),
 	  fMonitorRemovableDevices(false),
 	  fQueryList(1),
-	  fEntryList(1)
+	  fEntryList(1),
+	  fExcludeList(1)
 {
 	BMessage settings('sett') ;
 	if (load_settings(&settings) == B_OK)
 		LoadSettings(&settings) ;
+
+	// Exclude the index directory.
+	BPath indexPath ;
+	find_directory(B_COMMON_DIRECTORY, &indexPath) ;
+	indexPath.Append("data/index/") ;
+	entry_ref *indexRef = new entry_ref ;
+	get_ref_for_path(indexPath.Path(), indexRef) ;
+	fExcludeList.AddItem((void *)indexRef) ;
+	
 	Run() ;
 }
 
@@ -38,6 +48,7 @@ Feeder :: MessageReceived(BMessage *message)
 			HandleQueryUpdate(message) ;
 			break ;
 		case B_NODE_MONITOR :
+			HandleDeviceUpdate(message) ;
 			break ;
 		default:
 			BLooper :: MessageReceived(message) ;
@@ -106,20 +117,19 @@ Feeder :: AddQuery(BVolume *volume)
 }
 
 
-bool
-Feeder :: TranslatorAvailable(entry_ref *ref)
+void
+Feeder :: RemoveQuery(BVolume *volume)
 {
-	// For now, just return true if the file is a plain text file.
-	// Will change in the future when we have more translators.
-	BNode node(ref) ;
-	BNodeInfo nodeInfo(&node) ;
-
-	char MIMEString[B_MIME_TYPE_LENGTH] ;
-	nodeInfo.GetType(MIMEString) ;
-	if (!strcmp(MIMEString, "text/plain"))
-		return true ;
-	
-	return false ;
+	BQuery *query ;
+	dev_t device ;
+	for (int i = 0 ; (query = (BQuery*)fQueryList.ItemAt(i)) != NULL ; i++) {
+		if (volume->Device() == query->TargetDevice()) {
+			query->Clear() ;
+			fQueryList.RemoveItem(query) ;
+			delete query ;
+			delete volume ;
+		}
+	}
 }
 
 
@@ -153,7 +163,7 @@ Feeder :: RetrieveStaticRefs(BQuery *query)
 	while (query->GetNextRef(ref) == B_OK) {
 		entry.SetTo(ref) ;
 
-		if (entry.IsFile() && TranslatorAvailable(ref)) {
+		if (!Excluded(ref)) {
 			fEntryList.AddItem((void*)ref) ;
 			ref = new entry_ref ;
 		}
@@ -167,7 +177,9 @@ Feeder :: HandleQueryUpdate(BMessage *message)
 	int32 opcode ;
 	entry_ref *ref ;
 	const char *name ;
+
 	message->FindInt32("opcode", &opcode) ;
+
 	switch (opcode) {
 		case B_ENTRY_CREATED :
 			ref = new entry_ref ;
@@ -175,9 +187,58 @@ Feeder :: HandleQueryUpdate(BMessage *message)
 			message->FindInt64("directory", &ref->directory) ;
 			message->FindString("name", &name) ;
 			ref->set_name(name) ;
-			fEntryList.AddItem((void*)ref) ;
+			if(!Excluded(ref)) 
+				fEntryList.AddItem((void*)ref) ;
 			break ;
 		case B_ENTRY_REMOVED:
 			break ;
 	}
 }
+
+
+void
+Feeder :: HandleDeviceUpdate(BMessage *message)
+{
+	int32 opcode ;
+	BVolume *volume = new BVolume ;
+	dev_t device ;
+
+	message->FindInt32("opcode", &opcode) ;
+
+	switch (opcode) {
+		case B_DEVICE_MOUNTED :
+			message->FindInt32("new device", &device) ;
+			volume->SetTo(device) ;
+			AddQuery(volume) ;
+			break ;
+		case B_DEVICE_UNMOUNTED :
+			message->FindInt32("device", &device) ;
+			volume->SetTo(device) ;
+			RemoveQuery(volume) ;
+			break ;
+	}
+}
+
+
+bool
+Feeder :: Excluded(entry_ref *ref)
+{
+	BEntry entry(ref) ;
+	
+	// Exclude all non-file entries.
+	if(!entry.IsFile())
+		return true ;
+	
+	// Exclude anything that belongs to the exclude list.
+	entry_ref* excludeRef ;
+	BDirectory excludeDirectory ;
+	BPath path ;
+	for (int i = 0 ; (excludeRef = (entry_ref*)fExcludeList.ItemAt(i)) != NULL ; i++) {
+		excludeDirectory.SetTo(excludeRef) ;
+		if (excludeDirectory.Contains(&entry))
+			return true ;
+	}
+	
+	return false ;
+}
+

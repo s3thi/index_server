@@ -12,10 +12,8 @@
 #include <Directory.h>
 #include <Entry.h>
 #include <FindDirectory.h>
+#include <NodeInfo.h>
 #include <Path.h>
-
-#include <iostream>
-using namespace std ;
 
 using namespace lucene::document ;
 
@@ -72,6 +70,8 @@ Indexer :: QuitRequested()
 	
 	fIndexWriter->optimize() ;
 	fIndexWriter->close() ;
+
+	return true ;
 }
 
 
@@ -103,9 +103,9 @@ Indexer :: UpdateIndex()
 
 
 void
-Indexer :: AddDocument(entry_ref *ref)
+Indexer :: AddDocument(entry_ref* ref)
 {
-	if (Excluded(ref))
+	if (!TranslatorAvailable(ref))
 		return ;
 
 	// This will have to be changed once we add support for
@@ -135,48 +135,50 @@ Indexer :: AddDocument(entry_ref *ref)
 }
 
 
-bool
-Indexer :: Excluded(entry_ref *ref)
+void
+Indexer :: OpenIndex()
 {
-	// Quick hack for now. This will change in the future to become
-	// more flexible. Only checks for /boot/common/data/index/ to
-	// prevent the indexer from recursively indexing its own indexes.
-	BPath refDirectory(ref) ;
-	refDirectory.GetParent(&refDirectory) ;
-	BPath indexDirectory("/boot/common/data/index/") ;
-	if (refDirectory == indexDirectory)
+	BPath indexPath ;
+	find_directory(B_COMMON_DIRECTORY, &indexPath) ;
+	indexPath.Append("data/index/") ;
+
+	if (create_directory(indexPath.Path(), 0777) == B_OK) {
+		try {
+			if (IndexReader::indexExists(indexPath.Path()))
+				fIndexWriter = new IndexWriter(indexPath.Path(),
+					&fStandardAnalyzer, false) ;
+			else
+				fIndexWriter = new IndexWriter(indexPath.Path(),
+					&fStandardAnalyzer, true) ;
+		} catch (CLuceneError) {
+			// Index is corrupted. Delete it.
+			BDirectory indexDirectory(indexPath.Path()) ;
+			BEntry entry ;
+
+			while (indexDirectory.GetNextEntry(&entry, false) == B_OK)
+				entry.Remove() ;
+
+			OpenIndex() ;
+		}
+	} else
+		Quit() ;
+}
+
+
+bool
+Indexer :: TranslatorAvailable(entry_ref *ref)
+{
+	// For now, just return true if the file is a plain text file.
+	// Will change in the future when we have more translators.
+	BNode node(ref) ;
+	BNodeInfo nodeInfo(&node) ;
+
+	char MIMEString[B_MIME_TYPE_LENGTH] ;
+	nodeInfo.GetType(MIMEString) ;
+	if (!strcmp(MIMEString, "text/plain"))
 		return true ;
 	
 	return false ;
 }
 
 
-void
-Indexer :: OpenIndex()
-{
-	BPath indexPath ;
-	if (find_directory(B_COMMON_DIRECTORY, &indexPath) == B_OK) {
-		indexPath.Append("data/index/") ;
-		if (create_directory(indexPath.Path(), 0777) == B_OK) {
-			try {
-				if (IndexReader::indexExists(indexPath.Path()))
-					fIndexWriter = new IndexWriter(indexPath.Path(),
-						&fStandardAnalyzer, false) ;
-				else
-					fIndexWriter = new IndexWriter(indexPath.Path(),
-						&fStandardAnalyzer, true) ;
-			} catch (CLuceneError) {
-				// Index is corrupted. Delete it.
-				BDirectory indexDirectory(indexPath.Path()) ;
-				BEntry entry ;
-
-				while (indexDirectory.GetNextEntry(&entry, false) == B_OK)
-					entry.Remove() ;
-
-				OpenIndex() ;
-			}
-		} else
-			Quit() ;
-	} else
-		Quit() ;
-}
