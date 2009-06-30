@@ -18,6 +18,8 @@
 #include <CLucene.h>
 using namespace lucene::index ;
 using namespace lucene::analysis::standard ;
+using namespace lucene::util ;
+
 
 class Indexer : public BApplication {
 	public :
@@ -36,11 +38,12 @@ class Indexer : public BApplication {
 		bool TranslatorAvailable(entry_ref *ref) ;
 
 
-		Feeder 				fQueryFeeder ;
+		Feeder 				*fQueryFeeder ;
 		bigtime_t 			fUpdateInterval ;
 		BMessageRunner 		*fMessageRunner ;
 		IndexWriter			*fIndexWriter ;
 		StandardAnalyzer 	fStandardAnalyzer ;
+		FileReader			*fFileReader ;
 } ;
 
 #endif /* _INDEXER_H_ */

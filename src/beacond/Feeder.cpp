@@ -118,6 +118,20 @@ Feeder :: AddQuery(BVolume *volume)
 
 
 void
+Feeder :: AddEntry(entry_ref *ref)
+{
+	BEntry entry(ref) ;
+	entry_ref *ref_ptr ;
+
+	if(entry.InitCheck() == B_OK && entry.IsFile() && !IsHidden(ref)
+		&& !Excluded(ref)) {
+			ref_ptr = new entry_ref(*ref) ;
+			fEntryList.AddItem((void*)ref_ptr) ;
+	}
+}
+
+
+void
 Feeder :: RemoveQuery(BVolume *volume)
 {
 	BQuery *query ;
@@ -157,17 +171,10 @@ Feeder :: GetNextRef(entry_ref *ref)
 void
 Feeder :: RetrieveStaticRefs(BQuery *query)
 {
-	entry_ref *ref = new entry_ref ;
-	BEntry entry ;
+	entry_ref ref ;
 
-	while (query->GetNextRef(ref) == B_OK) {
-		entry.SetTo(ref) ;
-
-		if (!Excluded(ref)) {
-			fEntryList.AddItem((void*)ref) ;
-			ref = new entry_ref ;
-		}
-	}
+	while (query->GetNextRef(&ref) == B_OK)
+		AddEntry(&ref) ;
 }
 
 
@@ -187,8 +194,7 @@ Feeder :: HandleQueryUpdate(BMessage *message)
 			message->FindInt64("directory", &ref->directory) ;
 			message->FindString("name", &name) ;
 			ref->set_name(name) ;
-			if(!Excluded(ref)) 
-				fEntryList.AddItem((void*)ref) ;
+			AddEntry(ref) ;
 			break ;
 		case B_ENTRY_REMOVED:
 			break ;
@@ -224,12 +230,7 @@ bool
 Feeder :: Excluded(entry_ref *ref)
 {
 	BEntry entry(ref) ;
-	
-	// Exclude all non-file entries.
-	if(!entry.IsFile())
-		return true ;
-	
-	// Exclude anything that belongs to the exclude list.
+
 	entry_ref* excludeRef ;
 	BDirectory excludeDirectory ;
 	BPath path ;
@@ -239,6 +240,24 @@ Feeder :: Excluded(entry_ref *ref)
 			return true ;
 	}
 	
+	return false ;
+}
+
+
+bool
+Feeder :: IsHidden(entry_ref *ref)
+{	
+	if(ref->name[0] == '.')
+		return true ;
+	
+	BEntry entry(ref) ;
+	char name[B_FILE_NAME_LENGTH] ;
+	while (entry.GetParent(&entry) != B_ENTRY_NOT_FOUND) {
+		entry.GetName(name) ;
+		if (strlen(name) > 1 && name[0] == '.')
+			return true ;
+	}
+
 	return false ;
 }
 

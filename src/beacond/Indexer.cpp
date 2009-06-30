@@ -29,6 +29,8 @@ Indexer :: Indexer()
 	BMessage settings('sett') ;
 	if (load_settings(&settings) == B_OK)
 		LoadSettings(&settings) ;
+	
+	fQueryFeeder = new Feeder ;
 }
 
 
@@ -40,7 +42,7 @@ Indexer ::ReadyToRun()
 	
 	OpenIndex() ;
 
-	fQueryFeeder.StartWatching() ;
+	fQueryFeeder->StartWatching() ;
 	UpdateIndex() ;
 }
 
@@ -62,11 +64,11 @@ bool
 Indexer :: QuitRequested()
 {
 	BMessage settings('sett') ;
-	fQueryFeeder.SaveSettings(&settings) ;
+	fQueryFeeder->SaveSettings(&settings) ;
 	SaveSettings(&settings) ;
 	save_settings(&settings) ;
 	
-	fQueryFeeder.PostMessage(B_QUIT_REQUESTED) ;
+	fQueryFeeder->PostMessage(B_QUIT_REQUESTED) ;
 	
 	fIndexWriter->optimize() ;
 	fIndexWriter->close() ;
@@ -96,7 +98,7 @@ void
 Indexer :: UpdateIndex()
 {
 	entry_ref ref ;
-	while (fQueryFeeder.GetNextRef(&ref) == B_OK) {
+	while (fQueryFeeder->GetNextRef(&ref) == B_OK) {
 		AddDocument(&ref) ;
 	}
 }
@@ -110,28 +112,22 @@ Indexer :: AddDocument(entry_ref* ref)
 
 	// This will have to be changed once we add support for
 	// formats other than plain text.
-	BFile f(ref, B_READ_ONLY) ;
-	off_t size ;
-	f.GetSize(&size) ;
-	char *buf = new char[size+1] ;
-	f.Read(buf, size) ;
-	buf[size] = '\0' ;
-	f.Unset() ;
 	
-	BPath p(ref) ;
+	BPath path(ref) ;
+	// TODO: figure out if FileReaders delete themselves after
+	// they are done. It certainly looks that way.
+	fFileReader = new FileReader(path.Path(), "ASCII") ;
 
 	// The document has to be on the heap. See
 	// the CLucene API documentation.
 	Document *doc = new Document ;
-	Field contentsField("contents", buf,
+	Field contentsField("contents", fFileReader,
 		Field::STORE_NO | Field::INDEX_TOKENIZED) ;
-	Field pathField("path", p.Path(),
+	Field pathField("path", path.Path(),
 		Field::STORE_YES | Field::INDEX_UNTOKENIZED) ;
 	doc->add(contentsField) ;
 	doc->add(pathField) ;
 	fIndexWriter->addDocument(doc, &fStandardAnalyzer) ;
-
-	delete buf ;
 }
 
 

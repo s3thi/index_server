@@ -14,6 +14,7 @@
 #include <Query.h>
 #include <VolumeRoster.h>
 
+
 class Feeder : public BLooper {
 	public :
 		Feeder() ;
@@ -31,11 +32,13 @@ class Feeder : public BLooper {
 		// Feeder methods
 		void LoadSettings(BMessage *settings) ;
 		void AddQuery(BVolume *volume) ;
+		void AddEntry(entry_ref *ref) ;
 		void RemoveQuery(BVolume *volume) ;
 		void RetrieveStaticRefs(BQuery *query) ;
 		void HandleQueryUpdate(BMessage *message) ;
 		void HandleDeviceUpdate(BMessage *message) ;
 		bool Excluded(entry_ref *ref) ;
+		bool IsHidden(entry_ref *ref) ;
 
 		// Data members
 		bool			fMonitorRemovableDevices ;
