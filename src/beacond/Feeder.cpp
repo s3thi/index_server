@@ -22,7 +22,8 @@ Feeder :: Feeder()
 	  fMonitorRemovableDevices(false),
 	  fQueryList(1),
 	  fEntryList(1),
-	  fExcludeList(1)
+	  fExcludeList(1),
+	  fVolumeList(1)
 {
 	BMessage settings('sett') ;
 	if (load_settings(&settings) == B_OK)
@@ -90,7 +91,7 @@ Feeder :: StartWatching()
 	while (fVolumeRoster.GetNextVolume(volume) != B_BAD_VALUE) {
 		if ((volume->IsRemovable() && !fMonitorRemovableDevices)
 			|| !volume->KnowsQuery())
-			continue ;
+				continue ;
 		
 		AddQuery(volume) ;
 		volume = new BVolume ;
@@ -103,8 +104,9 @@ Feeder :: StartWatching()
 void
 Feeder :: AddQuery(BVolume *volume)
 {
-	BQuery *query = new BQuery ;
-	
+	fVolumeList.AddItem((void*)volume) ;
+
+	BQuery *query = new BQuery ;	
 	query->SetVolume(volume) ;
 	query->SetPredicate("last_modified > %now%") ;
 	query->SetTarget(this) ;
@@ -135,13 +137,22 @@ void
 Feeder :: RemoveQuery(BVolume *volume)
 {
 	BQuery *query ;
-	dev_t device ;
+	BVolume* iter_volume ;
+	
+	for(int i = 0 ; (iter_volume = (BVolume*)fVolumeList.ItemAt(i)) != NULL ; i++) {
+		if (iter_volume->Device() == volume->Device()) {
+			fVolumeList.RemoveItem(iter_volume) ;
+			break ;
+		}
+	}
+
 	for (int i = 0 ; (query = (BQuery*)fQueryList.ItemAt(i)) != NULL ; i++) {
 		if (volume->Device() == query->TargetDevice()) {
 			query->Clear() ;
 			fQueryList.RemoveItem(query) ;
 			delete query ;
 			delete volume ;
+			break ;
 		}
 	}
 }
@@ -150,6 +161,9 @@ Feeder :: RemoveQuery(BVolume *volume)
 status_t
 Feeder :: GetNextRef(entry_ref *ref)
 {
+	if (!ref)
+		return B_BAD_VALUE ;
+
 	entry_ref *ref_ptr ;
 	
 	// Copy the next entry_ref into ref and delete the
@@ -165,6 +179,13 @@ Feeder :: GetNextRef(entry_ref *ref)
 	
 	ref = NULL ;
 	return B_ENTRY_NOT_FOUND ;
+}
+
+
+BList*
+Feeder :: GetVolumeList()
+{
+	return &fVolumeList ;
 }
 
 
@@ -223,6 +244,8 @@ Feeder :: HandleDeviceUpdate(BMessage *message)
 			RemoveQuery(volume) ;
 			break ;
 	}
+
+	delete volume ;
 }
 
 

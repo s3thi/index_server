@@ -15,16 +15,25 @@
 #include <NodeInfo.h>
 #include <Path.h>
 
+#include <iostream>
+using namespace std ;
+
 using namespace lucene::document ;
 
 enum {
 	BEACON_UPDATE_INDEX = 'updt'
 } ;
 
+struct index_writer_ref {
+	IndexWriter *indexWriter ;
+	dev_t device ;
+} ;
+
 
 Indexer :: Indexer()
 	: BApplication("application/x-vnd.Haiku-BeaconDaemon"),
-	  fUpdateInterval(30 * 1000000)
+	  fUpdateInterval(30 * 1000000),
+	  fIndexWriterList(1)
 {
 	BMessage settings('sett') ;
 	if (load_settings(&settings) == B_OK)
@@ -40,9 +49,9 @@ Indexer ::ReadyToRun()
 	fMessageRunner = new BMessageRunner(this, new BMessage(BEACON_UPDATE_INDEX),
 		fUpdateInterval) ;
 	
-	OpenIndex() ;
 
 	fQueryFeeder->StartWatching() ;
+	InitIndexes() ;
 	UpdateIndex() ;
 }
 
@@ -70,8 +79,12 @@ Indexer :: QuitRequested()
 	
 	fQueryFeeder->PostMessage(B_QUIT_REQUESTED) ;
 	
-	fIndexWriter->optimize() ;
-	fIndexWriter->close() ;
+	index_writer_ref *ref ;
+	for (int i = 0 ; (ref = (index_writer_ref*)fIndexWriterList.ItemAt(0))
+		!= NULL ; i++) {
+			ref->indexWriter->optimize() ;
+			ref->indexWriter->close() ;
+	}
 
 	return true ;
 }
@@ -107,8 +120,23 @@ Indexer :: UpdateIndex()
 void
 Indexer :: AddDocument(entry_ref* ref)
 {
+	// See the device ID of the ref, and write to that specific
+	// index.
+	
 	if (!TranslatorAvailable(ref))
 		return ;
+	
+	IndexWriter *indexWriter = NULL ;
+	index_writer_ref *iter_ref ;
+	for (int i = 0 ; (iter_ref = (index_writer_ref*)fIndexWriterList.ItemAt(i))
+		!= NULL ; i++) {
+			if (iter_ref->device == ref->device)
+				indexWriter = iter_ref->indexWriter ;
+	}
+
+	if (indexWriter == NULL)
+		return ;
+
 
 	// This will have to be changed once we add support for
 	// formats other than plain text.
@@ -127,37 +155,59 @@ Indexer :: AddDocument(entry_ref* ref)
 		Field::STORE_YES | Field::INDEX_UNTOKENIZED) ;
 	doc->add(contentsField) ;
 	doc->add(pathField) ;
-	fIndexWriter->addDocument(doc, &fStandardAnalyzer) ;
+	indexWriter->addDocument(doc, &fStandardAnalyzer) ;
 }
 
 
 void
-Indexer :: OpenIndex()
+Indexer :: InitIndexes()
 {
-	BPath indexPath ;
-	find_directory(B_COMMON_DIRECTORY, &indexPath) ;
-	indexPath.Append("data/index/") ;
+	BVolume *volume ;
+	BList *volumeList = fQueryFeeder->GetVolumeList() ;
+	index_writer_ref *ref ;
+	BDirectory dir ;
+	for (int i = 0 ; (volume = (BVolume*)volumeList->ItemAt(i)) != NULL ; i++)
+	{
+		ref = new index_writer_ref ;
+		ref->device = volume->Device() ;
+		volume->GetRootDirectory(&dir) ;
+		ref->indexWriter = OpenIndex(&dir) ;
+		if (ref->indexWriter != NULL)
+			fIndexWriterList.AddItem((void*)ref) ;
+		else
+			delete ref ;
+	}
+}
 
-	if (create_directory(indexPath.Path(), 0777) == B_OK) {
-		try {
-			if (IndexReader::indexExists(indexPath.Path()))
-				fIndexWriter = new IndexWriter(indexPath.Path(),
-					&fStandardAnalyzer, false) ;
-			else
-				fIndexWriter = new IndexWriter(indexPath.Path(),
-					&fStandardAnalyzer, true) ;
-		} catch (CLuceneError) {
-			// Index is corrupted. Delete it.
-			BDirectory indexDirectory(indexPath.Path()) ;
-			BEntry entry ;
 
-			while (indexDirectory.GetNextEntry(&entry, false) == B_OK)
-				entry.Remove() ;
+IndexWriter*
+Indexer :: OpenIndex(BDirectory *dir)
+{	
+	IndexWriter *indexWriter = NULL ;
+	BPath path(dir) ;
+	path.Append("index") ;
+	
+	if(create_directory(path.Path(), 0777) != B_OK)
+		return NULL ;
+	
+	try {
+		if (IndexReader::indexExists(path.Path()))
+			indexWriter = new IndexWriter(path.Path(), &fStandardAnalyzer, 
+				false) ;
+		else
+			indexWriter = new IndexWriter(path.Path(), &fStandardAnalyzer,
+				true) ;
+	} catch (CLuceneError) {
+		// Index is unreadable. Delete it and call OpenIndex() again.
+		BEntry entry ;
+		BDirectory indexDirectory(path.Path()) ;
+		while (indexDirectory.GetNextEntry(&entry, false) == B_OK)
+			entry.Remove() ;
 
-			OpenIndex() ;
-		}
-	} else
-		Quit() ;
+		indexWriter = OpenIndex(dir) ;
+	}
+
+	return indexWriter ;
 }
 
 

@@ -34,16 +34,17 @@ class Indexer : public BApplication {
 		void UpdateIndex() ;
 		void AddDocument(entry_ref *ref) ;
 		bool Excluded(entry_ref *ref) ;
-		void OpenIndex() ;
+		void InitIndexes() ;
+		IndexWriter* OpenIndex(BDirectory *dir) ;
 		bool TranslatorAvailable(entry_ref *ref) ;
 
 
 		Feeder 				*fQueryFeeder ;
 		bigtime_t 			fUpdateInterval ;
 		BMessageRunner 		*fMessageRunner ;
-		IndexWriter			*fIndexWriter ;
 		StandardAnalyzer 	fStandardAnalyzer ;
 		FileReader			*fFileReader ;
+		BList				fIndexWriterList ;
 } ;
 
 #endif /* _INDEXER_H_ */

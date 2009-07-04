@@ -25,9 +25,10 @@ class Feeder : public BLooper {
 
 		// Feeder methods
 		void StartWatching() ;
-		status_t GetNextRef(entry_ref *ref) ;
 		void SaveSettings(BMessage *settings) ;
-	
+		status_t GetNextRef(entry_ref *ref) ;
+		BList* GetVolumeList() ;
+
 	private :
 		// Feeder methods
 		void LoadSettings(BMessage *settings) ;
@@ -46,6 +47,7 @@ class Feeder : public BLooper {
 		BList			fQueryList ;
 		BList			fEntryList ;
 		BList			fExcludeList ;
+		BList 			fVolumeList ;
 } ;
 
 #endif /* _FEEDER_H_ */
