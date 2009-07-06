@@ -237,11 +237,14 @@ Feeder :: HandleDeviceUpdate(BMessage *message)
 			message->FindInt32("new device", &device) ;
 			volume->SetTo(device) ;
 			AddQuery(volume) ;
+			be_app->PostMessage(message) ;
 			break ;
+		
 		case B_DEVICE_UNMOUNTED :
 			message->FindInt32("device", &device) ;
 			volume->SetTo(device) ;
 			RemoveQuery(volume) ;
+			be_app->PostMessage(message) ;
 			break ;
 	}
 

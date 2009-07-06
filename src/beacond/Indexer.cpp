@@ -13,10 +13,8 @@
 #include <Entry.h>
 #include <FindDirectory.h>
 #include <NodeInfo.h>
+#include <NodeMonitor.h>
 #include <Path.h>
-
-#include <iostream>
-using namespace std ;
 
 using namespace lucene::document ;
 
@@ -47,11 +45,15 @@ void
 Indexer ::ReadyToRun()
 {
 	fMessageRunner = new BMessageRunner(this, new BMessage(BEACON_UPDATE_INDEX),
-		fUpdateInterval) ;
-	
+		fUpdateInterval) ;	
 
 	fQueryFeeder->StartWatching() ;
-	InitIndexes() ;
+
+	BVolume *volume ;
+	BList *volumeList = fQueryFeeder->GetVolumeList() ;
+	for (int i = 0 ; (volume = (BVolume*)volumeList->ItemAt(i)) != NULL ; i++)
+		InitIndex(volume) ;
+
 	UpdateIndex() ;
 }
 
@@ -62,6 +64,9 @@ Indexer :: MessageReceived(BMessage *message)
 	switch (message->what) {
 		case BEACON_UPDATE_INDEX :
 			UpdateIndex() ;
+			break ;
+		case B_NODE_MONITOR :
+			HandleDeviceUpdate(message) ;
 			break ;
 		default :
 			BApplication :: MessageReceived(message) ;
@@ -120,9 +125,6 @@ Indexer :: UpdateIndex()
 void
 Indexer :: AddDocument(entry_ref* ref)
 {
-	// See the device ID of the ref, and write to that specific
-	// index.
-	
 	if (!TranslatorAvailable(ref))
 		return ;
 	
@@ -160,23 +162,19 @@ Indexer :: AddDocument(entry_ref* ref)
 
 
 void
-Indexer :: InitIndexes()
+Indexer :: InitIndex(BVolume *volume)
 {
-	BVolume *volume ;
-	BList *volumeList = fQueryFeeder->GetVolumeList() ;
-	index_writer_ref *ref ;
+	index_writer_ref *ref = new index_writer_ref ;
 	BDirectory dir ;
-	for (int i = 0 ; (volume = (BVolume*)volumeList->ItemAt(i)) != NULL ; i++)
-	{
-		ref = new index_writer_ref ;
-		ref->device = volume->Device() ;
-		volume->GetRootDirectory(&dir) ;
-		ref->indexWriter = OpenIndex(&dir) ;
-		if (ref->indexWriter != NULL)
-			fIndexWriterList.AddItem((void*)ref) ;
-		else
-			delete ref ;
-	}
+	
+	ref->device = volume->Device() ;
+	volume->GetRootDirectory(&dir) ;
+	ref->indexWriter = OpenIndex(&dir) ;
+	
+	if (ref->indexWriter != NULL)
+		fIndexWriterList.AddItem((void*)ref) ;
+	else
+		delete ref ;
 }
 
 
@@ -228,3 +226,43 @@ Indexer :: TranslatorAvailable(entry_ref *ref)
 }
 
 
+void
+Indexer :: HandleDeviceUpdate(BMessage *message)
+{
+	int32 opcode ;
+	dev_t device ;
+	BVolume volume ;
+	message->FindInt32("opcode", &opcode) ;
+
+	switch (opcode) {
+		case B_DEVICE_MOUNTED :
+			message->FindInt32("new device", &device) ;
+			volume.SetTo(device) ;
+			InitIndex(&volume) ;
+			break ;
+		
+		case B_DEVICE_UNMOUNTED :
+			message->FindInt32("device", &device) ;
+			volume.SetTo(device) ;
+			CloseIndex(&volume) ;
+			break ;
+	}
+}
+
+
+void
+Indexer :: CloseIndex(BVolume *volume)
+{
+	// Just removes the index_writer_ref from fIndexWriterList for now.
+	// This means unmounting or unplugging the USB will cause the index
+	// to become corrupted. TODO.
+	index_writer_ref *ref ;
+	for (int i = 0 ; (ref = (index_writer_ref*)fIndexWriterList.ItemAt(i)) != NULL
+		; i++) {
+			if (ref->device == volume->Device()) {
+				fIndexWriterList.RemoveItem(i) ;
+				delete ref ;
+				break ;
+			}
+	}
+}

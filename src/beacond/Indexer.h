@@ -34,9 +34,11 @@ class Indexer : public BApplication {
 		void UpdateIndex() ;
 		void AddDocument(entry_ref *ref) ;
 		bool Excluded(entry_ref *ref) ;
-		void InitIndexes() ;
+		void InitIndex(BVolume *volume) ;
 		IndexWriter* OpenIndex(BDirectory *dir) ;
 		bool TranslatorAvailable(entry_ref *ref) ;
+		void HandleDeviceUpdate(BMessage *message) ;
+		void CloseIndex(BVolume *volume) ;
 
 
 		Feeder 				*fQueryFeeder ;
