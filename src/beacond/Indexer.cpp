@@ -18,35 +18,21 @@
 
 using namespace lucene::document ;
 
-enum {
-	BEACON_UPDATE_INDEX = 'updt'
-} ;
-
-struct index_writer_ref {
-	IndexWriter *indexWriter ;
-	dev_t device ;
-} ;
-
 
 Indexer :: Indexer()
 	: BApplication("application/x-vnd.Haiku-BeaconDaemon"),
-	  fUpdateInterval(30 * 1000000),
 	  fIndexWriterList(1)
 {
 	BMessage settings('sett') ;
 	if (load_settings(&settings) == B_OK)
 		LoadSettings(&settings) ;
-	
-	fQueryFeeder = new Feeder ;
 }
 
 
 void
 Indexer ::ReadyToRun()
 {
-	fMessageRunner = new BMessageRunner(this, new BMessage(BEACON_UPDATE_INDEX),
-		fUpdateInterval) ;	
-
+	fQueryFeeder = new Feeder() ;
 	fQueryFeeder->StartWatching() ;
 
 	BVolume *volume ;
@@ -61,9 +47,17 @@ Indexer ::ReadyToRun()
 void
 Indexer :: MessageReceived(BMessage *message)
 {
+	index_writer_ref *ref = NULL ; 
+	dev_t device ;
+	
 	switch (message->what) {
 		case BEACON_UPDATE_INDEX :
 			UpdateIndex() ;
+			break ;
+		case BEACON_THREAD_DONE :
+			message->FindInt32("device", &device) ;
+			ref = FindIndexWriterRef(device) ;
+			acquire_sem(ref->sem) ;
 			break ;
 		case B_NODE_MONITOR :
 			HandleDeviceUpdate(message) ;
@@ -98,89 +92,66 @@ Indexer :: QuitRequested()
 void
 Indexer :: SaveSettings(BMessage *settings)
 {
-	if(settings->ReplaceInt64("update_interval", fUpdateInterval) != B_OK)
-		settings->AddInt64("update_interval", fUpdateInterval) ;
 }
 
 
 void
 Indexer :: LoadSettings(BMessage *settings)
 {
-	bigtime_t updateInterval ;
-	if (settings->FindInt64("update_interval", &updateInterval) == B_OK)
-		fUpdateInterval = updateInterval ;
 }
 
 
 void
 Indexer :: UpdateIndex()
 {
-	entry_ref ref ;
-	while (fQueryFeeder->GetNextRef(&ref) == B_OK) {
-		AddDocument(&ref) ;
+	entry_ref* iter_ref = new entry_ref ;
+	dev_t device = -1 ;
+	index_writer_ref *ref = NULL ;
+	while (fQueryFeeder->GetNextRef(iter_ref) == B_OK) {
+		if (ref == NULL || ref->device != iter_ref->device)
+			ref = FindIndexWriterRef(iter_ref->device) ;
+
+		if (ref != NULL && TranslatorAvailable(iter_ref))
+			ref->entryList->AddItem(iter_ref) ;
 	}
-}
 
-
-void
-Indexer :: AddDocument(entry_ref* ref)
-{
-	if (!TranslatorAvailable(ref))
-		return ;
-	
-	IndexWriter *indexWriter = NULL ;
-	index_writer_ref *iter_ref ;
-	for (int i = 0 ; (iter_ref = (index_writer_ref*)fIndexWriterList.ItemAt(i))
+	for (int i = 0 ; (ref = (index_writer_ref*)fIndexWriterList.ItemAt(i))
 		!= NULL ; i++) {
-			if (iter_ref->device == ref->device)
-				indexWriter = iter_ref->indexWriter ;
+			release_sem(ref->sem) ;
+			resume_thread(ref->thread) ;
 	}
-
-	if (indexWriter == NULL)
-		return ;
-
-
-	// This will have to be changed once we add support for
-	// formats other than plain text.
-	
-	BPath path(ref) ;
-	// TODO: figure out if FileReaders delete themselves after
-	// they are done. It certainly looks that way.
-	fFileReader = new FileReader(path.Path(), "ASCII") ;
-
-	// The document has to be on the heap. See
-	// the CLucene API documentation.
-	Document *doc = new Document ;
-	Field contentsField("contents", fFileReader,
-		Field::STORE_NO | Field::INDEX_TOKENIZED) ;
-	Field pathField("path", path.Path(),
-		Field::STORE_YES | Field::INDEX_UNTOKENIZED) ;
-	doc->add(contentsField) ;
-	doc->add(pathField) ;
-	indexWriter->addDocument(doc, &fStandardAnalyzer) ;
 }
 
 
 void
 Indexer :: InitIndex(BVolume *volume)
 {
+	// TODO: handle errors.
+	
 	index_writer_ref *ref = new index_writer_ref ;
+	char volume_name[B_FILE_NAME_LENGTH] ;
 	BDirectory dir ;
 	
 	ref->device = volume->Device() ;
 	volume->GetRootDirectory(&dir) ;
 	ref->indexWriter = OpenIndex(&dir) ;
+	ref->entryList = new BList(10) ;
 	
-	if (ref->indexWriter != NULL)
-		fIndexWriterList.AddItem((void*)ref) ;
-	else
-		delete ref ;
+	volume->GetName(volume_name) ;
+	ref->sem = create_sem(1, volume_name) ;
+	acquire_sem(ref->sem) ;
+	ref->thread = spawn_thread(add_document, volume_name, B_NORMAL_PRIORITY,
+		(void*)ref) ;
+
+	fIndexWriterList.AddItem((void*)ref) ;
 }
 
 
 IndexWriter*
 Indexer :: OpenIndex(BDirectory *dir)
 {	
+	// TODO: handle errors.
+
 	IndexWriter *indexWriter = NULL ;
 	BPath path(dir) ;
 	path.Append("index") ;
@@ -264,5 +235,68 @@ Indexer :: CloseIndex(BVolume *volume)
 				delete ref ;
 				break ;
 			}
+	}
+}
+
+
+index_writer_ref*
+Indexer :: FindIndexWriterRef(dev_t device)
+{
+	index_writer_ref *iter_ref ;
+	for (int i = 0 ; (iter_ref = (index_writer_ref*)fIndexWriterList.ItemAt(i))
+		!= NULL ; i++) {
+			if (iter_ref->device == device)
+				return iter_ref ;
+	}
+
+	return NULL ;
+}
+
+
+int32 add_document(void *data)
+{
+	index_writer_ref *ref = (index_writer_ref*)data ;
+	entry_ref *iter_ref ;
+	BList *entryList = ref->entryList ;
+	BMessage doneMessage(BEACON_THREAD_DONE) ;
+	doneMessage.AddInt32("device", ref->device) ;
+	BPath path ;
+	IndexWriter *indexWriter = ref->indexWriter ;
+	FileReader *fileReader ;
+	Document *doc ;
+	StandardAnalyzer standardAnalyzer ;
+
+	BVolume volume(ref->device) ;
+	BDirectory dir ;
+	volume.GetRootDirectory(&dir) ;
+	path.SetTo(&dir) ;
+	path.Append("index") ;
+	dir.SetTo(path.Path()) ;
+
+	while (acquire_sem(ref->sem) >= B_NO_ERROR) {
+		for (int i = 0 ; (iter_ref = (entry_ref*)entryList->ItemAt(i)) != NULL
+			; i++) {
+				path.SetTo(iter_ref) ;
+				if (dir.Contains(path.Path()))
+					continue ;
+
+				// TODO: figure out if FileReaders delete themselves after
+				// they are done. It certainly looks that way.
+				fileReader = new FileReader(path.Path(), "ASCII") ;
+
+				doc = new Document ;
+				doc->add(*(new Field("contents", fileReader, 
+					Field::STORE_NO | Field::INDEX_TOKENIZED))) ;
+				doc->add(*(new Field ("path", path.Path(),
+					Field::STORE_YES | Field::INDEX_UNTOKENIZED))) ;
+				indexWriter->addDocument(doc, &standardAnalyzer) ;
+
+				delete iter_ref ;
+		}
+
+		entryList->MakeEmpty() ;
+		be_app->PostMessage(&doneMessage) ;
+		release_sem(ref->sem) ;
+		suspend_thread(find_thread(NULL)) ;
 	}
 }

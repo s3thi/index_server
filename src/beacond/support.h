@@ -11,6 +11,11 @@
 
 #include <Message.h>
 
+enum {
+	BEACON_UPDATE_INDEX = 'updt',
+	BEACON_THREAD_DONE = 'done'
+} ;
+
 status_t load_settings(BMessage *message) ;
 status_t save_settings(BMessage *message) ;
 

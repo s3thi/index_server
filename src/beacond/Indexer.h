@@ -13,13 +13,22 @@
 
 #include <Application.h>
 #include <Locker.h>
-#include <MessageRunner.h>
 
 #include <CLucene.h>
 using namespace lucene::index ;
 using namespace lucene::analysis::standard ;
 using namespace lucene::util ;
 
+
+struct index_writer_ref {
+	IndexWriter *indexWriter ;
+	BList *entryList ;
+	dev_t device ;
+	thread_id thread ;
+	sem_id sem ;
+} ;
+
+int32 add_document(void *data) ;
 
 class Indexer : public BApplication {
 	public :
@@ -32,21 +41,19 @@ class Indexer : public BApplication {
 		void SaveSettings(BMessage *message) ;
 		void LoadSettings(BMessage *message) ;
 		void UpdateIndex() ;
-		void AddDocument(entry_ref *ref) ;
 		bool Excluded(entry_ref *ref) ;
 		void InitIndex(BVolume *volume) ;
 		IndexWriter* OpenIndex(BDirectory *dir) ;
 		bool TranslatorAvailable(entry_ref *ref) ;
 		void HandleDeviceUpdate(BMessage *message) ;
 		void CloseIndex(BVolume *volume) ;
-
+		index_writer_ref* FindIndexWriterRef(dev_t device) ;
 
 		Feeder 				*fQueryFeeder ;
-		bigtime_t 			fUpdateInterval ;
-		BMessageRunner 		*fMessageRunner ;
 		StandardAnalyzer 	fStandardAnalyzer ;
 		FileReader			*fFileReader ;
 		BList				fIndexWriterList ;
 } ;
+
 
 #endif /* _INDEXER_H_ */

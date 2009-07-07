@@ -9,15 +9,17 @@
 #ifndef _FEEDER_H_
 #define _FEEDER_H_
 
+#include <Locker.h>
 #include <Looper.h>
 #include <Message.h>
+#include <MessageRunner.h>
 #include <Query.h>
 #include <VolumeRoster.h>
 
 
 class Feeder : public BLooper {
 	public :
-		Feeder() ;
+		Feeder(BHandler *target = be_app) ;
 
 		// BLooper methods
 		virtual void MessageReceived(BMessage *message) ;
@@ -48,6 +50,11 @@ class Feeder : public BLooper {
 		BList			fEntryList ;
 		BList			fExcludeList ;
 		BList 			fVolumeList ;
+		BLocker			fEntryListLocker ;
+		bigtime_t		fUpdateInterval ;
+		BMessageRunner	*fMessageRunner ;
+		BHandler		*fTarget ;
+
 } ;
 
 #endif /* _FEEDER_H_ */

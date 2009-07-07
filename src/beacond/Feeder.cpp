@@ -17,13 +17,15 @@
 #include <string.h>
 
 
-Feeder :: Feeder()
+Feeder :: Feeder(BHandler *target)
 	: BLooper("feeder"),
 	  fMonitorRemovableDevices(false),
 	  fQueryList(1),
 	  fEntryList(1),
 	  fExcludeList(1),
-	  fVolumeList(1)
+	  fVolumeList(1),
+	  fUpdateInterval(30 * 1000000)
+
 {
 	BMessage settings('sett') ;
 	if (load_settings(&settings) == B_OK)
@@ -36,6 +38,10 @@ Feeder :: Feeder()
 	entry_ref *indexRef = new entry_ref ;
 	get_ref_for_path(indexPath.Path(), indexRef) ;
 	fExcludeList.AddItem((void *)indexRef) ;
+
+	fTarget = target ;
+	fMessageRunner = new BMessageRunner(fTarget, new BMessage(BEACON_UPDATE_INDEX),
+		fUpdateInterval) ;
 	
 	Run() ;
 }
@@ -71,6 +77,11 @@ Feeder :: LoadSettings(BMessage *settings)
 	if (settings->FindBool("monitor_removable_devices",
 		&monitorRemovableDevices) == B_OK)
 		fMonitorRemovableDevices = monitorRemovableDevices ;
+	
+	bigtime_t updateInterval ;
+	if (settings->FindInt64("update_interval", &updateInterval) == B_OK)
+		fUpdateInterval = updateInterval ;
+
 }
 
 
@@ -80,6 +91,10 @@ Feeder :: SaveSettings(BMessage *settings)
 	if (settings->ReplaceBool("monitor_removable_devices",
 		fMonitorRemovableDevices) != B_OK)
 		settings->AddBool("monitor_removable_devices", fMonitorRemovableDevices) ;
+	
+	if(settings->ReplaceInt64("update_interval", fUpdateInterval) != B_OK)
+		settings->AddInt64("update_interval", fUpdateInterval) ;
+
 }
 
 
@@ -122,6 +137,7 @@ Feeder :: AddQuery(BVolume *volume)
 void
 Feeder :: AddEntry(entry_ref *ref)
 {
+	fEntryListLocker.Lock() ;
 	BEntry entry(ref) ;
 	entry_ref *ref_ptr ;
 
@@ -130,6 +146,7 @@ Feeder :: AddEntry(entry_ref *ref)
 			ref_ptr = new entry_ref(*ref) ;
 			fEntryList.AddItem((void*)ref_ptr) ;
 	}
+	fEntryListLocker.Unlock() ;
 }
 
 
@@ -161,6 +178,7 @@ Feeder :: RemoveQuery(BVolume *volume)
 status_t
 Feeder :: GetNextRef(entry_ref *ref)
 {
+	fEntryListLocker.Lock() ;
 	if (!ref)
 		return B_BAD_VALUE ;
 
@@ -174,9 +192,11 @@ Feeder :: GetNextRef(entry_ref *ref)
 		*ref = *ref_ptr ;
 		delete ref_ptr ;
 
+		fEntryListLocker.Unlock() ;
 		return B_OK ;
 	}
 	
+	fEntryListLocker.Unlock() ;
 	ref = NULL ;
 	return B_ENTRY_NOT_FOUND ;
 }
