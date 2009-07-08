@@ -31,14 +31,6 @@ Feeder :: Feeder(BHandler *target)
 	if (load_settings(&settings) == B_OK)
 		LoadSettings(&settings) ;
 
-	// Exclude the index directory.
-	BPath indexPath ;
-	find_directory(B_COMMON_DIRECTORY, &indexPath) ;
-	indexPath.Append("data/index/") ;
-	entry_ref *indexRef = new entry_ref ;
-	get_ref_for_path(indexPath.Path(), indexRef) ;
-	fExcludeList.AddItem((void *)indexRef) ;
-
 	fTarget = target ;
 	fMessageRunner = new BMessageRunner(fTarget, new BMessage(BEACON_UPDATE_INDEX),
 		fUpdateInterval) ;

@@ -77,10 +77,13 @@ Indexer :: QuitRequested()
 	save_settings(&settings) ;
 	
 	fQueryFeeder->PostMessage(B_QUIT_REQUESTED) ;
-	
+
 	index_writer_ref *ref ;
-	for (int i = 0 ; (ref = (index_writer_ref*)fIndexWriterList.ItemAt(0))
+	status_t exitValue ;
+	for (int i = 0 ; (ref = (index_writer_ref*)fIndexWriterList.ItemAt(i))
 		!= NULL ; i++) {
+			delete_sem(ref->sem) ;
+			wait_for_thread(ref->thread, &exitValue) ;
 			ref->indexWriter->optimize() ;
 			ref->indexWriter->close() ;
 	}
@@ -256,16 +259,17 @@ Indexer :: FindIndexWriterRef(dev_t device)
 int32 add_document(void *data)
 {
 	index_writer_ref *ref = (index_writer_ref*)data ;
-	entry_ref *iter_ref ;
 	BList *entryList = ref->entryList ;
+	entry_ref *iter_ref ;
 	BMessage doneMessage(BEACON_THREAD_DONE) ;
 	doneMessage.AddInt32("device", ref->device) ;
 	BPath path ;
 	IndexWriter *indexWriter = ref->indexWriter ;
 	FileReader *fileReader ;
 	Document *doc ;
-	StandardAnalyzer standardAnalyzer ;
 
+	// Get path to the index directory on this particular
+	// volume.
 	BVolume volume(ref->device) ;
 	BDirectory dir ;
 	volume.GetRootDirectory(&dir) ;
@@ -280,8 +284,6 @@ int32 add_document(void *data)
 				if (dir.Contains(path.Path()))
 					continue ;
 
-				// TODO: figure out if FileReaders delete themselves after
-				// they are done. It certainly looks that way.
 				fileReader = new FileReader(path.Path(), "ASCII") ;
 
 				doc = new Document ;
@@ -289,9 +291,7 @@ int32 add_document(void *data)
 					Field::STORE_NO | Field::INDEX_TOKENIZED))) ;
 				doc->add(*(new Field ("path", path.Path(),
 					Field::STORE_YES | Field::INDEX_UNTOKENIZED))) ;
-				indexWriter->addDocument(doc, &standardAnalyzer) ;
-
-				delete iter_ref ;
+				indexWriter->addDocument(doc) ;
 		}
 
 		entryList->MakeEmpty() ;
@@ -299,4 +299,6 @@ int32 add_document(void *data)
 		release_sem(ref->sem) ;
 		suspend_thread(find_thread(NULL)) ;
 	}
+
+	return B_OK ;
 }
