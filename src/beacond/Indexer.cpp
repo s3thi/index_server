@@ -235,6 +235,8 @@ Indexer :: CloseIndex(BVolume *volume)
 		; i++) {
 			if (ref->device == volume->Device()) {
 				fIndexWriterList.RemoveItem(i) ;
+				kill_thread(ref->thread) ;
+				delete_sem(ref->sem) ;
 				delete ref ;
 				break ;
 			}
