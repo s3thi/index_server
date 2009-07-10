@@ -5,6 +5,7 @@ SubDir TOP src beacond ;
 Main beacond :
 	Feeder.cpp
 	Indexer.cpp
+	BeaconIndex.cpp
 	support.cpp
 	main.cpp
 ;

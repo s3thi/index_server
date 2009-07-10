@@ -9,6 +9,7 @@
 #ifndef _INDEXER_H_
 #define _INDEXER_H_
 
+#include "BeaconIndex.h"
 #include "Feeder.h"
 
 #include <Application.h>
@@ -21,7 +22,7 @@ using namespace lucene::util ;
 
 
 struct index_writer_ref {
-	IndexWriter *indexWriter ;
+	BeaconIndex *index ;
 	BList *entryList ;
 	dev_t device ;
 	thread_id thread ;
@@ -41,8 +42,7 @@ class Indexer : public BApplication {
 		void SaveSettings(BMessage *message) ;
 		void LoadSettings(BMessage *message) ;
 		void UpdateIndex() ;
-		bool Excluded(entry_ref *ref) ;
-		void InitIndex(BVolume *volume) ;
+		status_t InitIndex(BVolume *volume) ;
 		IndexWriter* OpenIndex(BDirectory *dir) ;
 		bool TranslatorAvailable(entry_ref *ref) ;
 		void HandleDeviceUpdate(BMessage *message) ;

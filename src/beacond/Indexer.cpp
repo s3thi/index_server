@@ -19,7 +19,7 @@
 using namespace lucene::document ;
 
 
-Indexer :: Indexer()
+Indexer::Indexer()
 	: BApplication("application/x-vnd.Haiku-BeaconDaemon"),
 	  fIndexWriterList(1)
 {
@@ -30,7 +30,7 @@ Indexer :: Indexer()
 
 
 void
-Indexer ::ReadyToRun()
+Indexer::ReadyToRun()
 {
 	fQueryFeeder = new Feeder() ;
 	fQueryFeeder->StartWatching() ;
@@ -45,9 +45,9 @@ Indexer ::ReadyToRun()
 
 
 void
-Indexer :: MessageReceived(BMessage *message)
+Indexer::MessageReceived(BMessage *message)
 {
-	index_writer_ref *ref = NULL ; 
+	index_writer_ref *iw_ref = NULL ; 
 	dev_t device ;
 	
 	switch (message->what) {
@@ -56,9 +56,8 @@ Indexer :: MessageReceived(BMessage *message)
 			break ;
 		case BEACON_THREAD_DONE :
 			message->FindInt32("device", &device) ;
-			ref = FindIndexWriterRef(device) ;
-			acquire_sem(ref->sem) ;
-			break ;
+			iw_ref = FindIndexWriterRef(device) ;
+			acquire_sem(iw_ref->sem) ;
 		case B_NODE_MONITOR :
 			HandleDeviceUpdate(message) ;
 			break ;
@@ -69,7 +68,7 @@ Indexer :: MessageReceived(BMessage *message)
 
 
 bool
-Indexer :: QuitRequested()
+Indexer::QuitRequested()
 {
 	BMessage settings('sett') ;
 	fQueryFeeder->SaveSettings(&settings) ;
@@ -84,8 +83,6 @@ Indexer :: QuitRequested()
 		!= NULL ; i++) {
 			delete_sem(ref->sem) ;
 			wait_for_thread(ref->thread, &exitValue) ;
-			ref->indexWriter->optimize() ;
-			ref->indexWriter->close() ;
 	}
 
 	return true ;
@@ -93,119 +90,94 @@ Indexer :: QuitRequested()
 
 
 void
-Indexer :: SaveSettings(BMessage *settings)
+Indexer::SaveSettings(BMessage *settings)
 {
 }
 
 
 void
-Indexer :: LoadSettings(BMessage *settings)
+Indexer::LoadSettings(BMessage *settings)
 {
 }
 
 
 void
-Indexer :: UpdateIndex()
+Indexer::UpdateIndex()
 {
-	entry_ref* iter_ref = new entry_ref ;
+	index_writer_ref *iw_ref = NULL ;
+	entry_ref* e_ref = new entry_ref ;
 	dev_t device = -1 ;
-	index_writer_ref *ref = NULL ;
-	while (fQueryFeeder->GetNextRef(iter_ref) == B_OK) {
-		if (ref == NULL || ref->device != iter_ref->device)
-			ref = FindIndexWriterRef(iter_ref->device) ;
+	while (fQueryFeeder->GetNextRef(e_ref) == B_OK) {
+		if (iw_ref == NULL || iw_ref->device != e_ref->device)
+			iw_ref = FindIndexWriterRef(e_ref->device) ;
 
-		if (ref != NULL && TranslatorAvailable(iter_ref))
-			ref->entryList->AddItem(iter_ref) ;
+		if (iw_ref != NULL)
+			iw_ref->entryList->AddItem(e_ref) ;
 	}
 
-	for (int i = 0 ; (ref = (index_writer_ref*)fIndexWriterList.ItemAt(i))
+	// Resume the add_document threads after the list of files has been
+	// updated.
+	for (int i = 0 ; (iw_ref = (index_writer_ref*)fIndexWriterList.ItemAt(i))
 		!= NULL ; i++) {
-			release_sem(ref->sem) ;
-			resume_thread(ref->thread) ;
+			release_sem(iw_ref->sem) ;
+			resume_thread(iw_ref->thread) ;
 	}
 }
 
 
-void
-Indexer :: InitIndex(BVolume *volume)
+status_t
+Indexer::InitIndex(BVolume *volume)
 {
-	// TODO: handle errors.
+	status_t error = B_BAD_VALUE ;
+
+	if (!volume)
+		return error ;
 	
-	index_writer_ref *ref = new index_writer_ref ;
+	index_writer_ref *iw_ref = new index_writer_ref ;
 	char volume_name[B_FILE_NAME_LENGTH] ;
 	BDirectory dir ;
 	
-	ref->device = volume->Device() ;
+	iw_ref->device = volume->Device() ;
+	
 	volume->GetRootDirectory(&dir) ;
-	ref->indexWriter = OpenIndex(&dir) ;
-	ref->entryList = new BList(10) ;
+	/*
+	if ((iw_ref->indexWriter = OpenIndex(&dir)) == NULL) {
+		delete iw_ref ;
+		return B_ERROR ;
+	}*/
+	iw_ref->index = new BeaconIndex(&dir) ;
 	
 	volume->GetName(volume_name) ;
-	ref->sem = create_sem(1, volume_name) ;
-	acquire_sem(ref->sem) ;
-	ref->thread = spawn_thread(add_document, volume_name, B_NORMAL_PRIORITY,
-		(void*)ref) ;
-
-	fIndexWriterList.AddItem((void*)ref) ;
-}
-
-
-IndexWriter*
-Indexer :: OpenIndex(BDirectory *dir)
-{	
-	// TODO: handle errors.
-
-	IndexWriter *indexWriter = NULL ;
-	BPath path(dir) ;
-	path.Append("index") ;
-	
-	if(create_directory(path.Path(), 0777) != B_OK)
-		return NULL ;
-	
-	try {
-		if (IndexReader::indexExists(path.Path()))
-			indexWriter = new IndexWriter(path.Path(), &fStandardAnalyzer, 
-				false) ;
-		else
-			indexWriter = new IndexWriter(path.Path(), &fStandardAnalyzer,
-				true) ;
-	} catch (CLuceneError) {
-		// Index is unreadable. Delete it and call OpenIndex() again.
-		BEntry entry ;
-		BDirectory indexDirectory(path.Path()) ;
-		while (indexDirectory.GetNextEntry(&entry, false) == B_OK)
-			entry.Remove() ;
-
-		indexWriter = OpenIndex(dir) ;
+	if ((iw_ref->sem = create_sem(1, volume_name)) < B_NO_ERROR) {
+		delete iw_ref ;
+		return iw_ref->sem ;
 	}
 
-	return indexWriter ;
-}
-
-
-bool
-Indexer :: TranslatorAvailable(entry_ref *ref)
-{
-	// For now, just return true if the file is a plain text file.
-	// Will change in the future when we have more translators.
-	BNode node(ref) ;
-	BNodeInfo nodeInfo(&node) ;
-
-	char MIMEString[B_MIME_TYPE_LENGTH] ;
-	nodeInfo.GetType(MIMEString) ;
-	if (!strcmp(MIMEString, "text/plain"))
-		return true ;
+	if ((error = acquire_sem(iw_ref->sem)) < B_OK) {
+		delete iw_ref ;
+		return error ;
+	}
 	
-	return false ;
+	if ((iw_ref->thread = spawn_thread(add_document, volume_name, B_LOW_PRIORITY,
+		iw_ref)) < B_NO_ERROR) {
+			delete iw_ref ;
+			return iw_ref->thread ;
+	}
+
+	iw_ref->entryList = new BList(10) ;
+	fIndexWriterList.AddItem(iw_ref) ;
+	
+	return B_OK ;
 }
 
 
 void
-Indexer :: HandleDeviceUpdate(BMessage *message)
+Indexer::HandleDeviceUpdate(BMessage *message)
 {
 	int32 opcode ;
 	dev_t device ;
 	BVolume volume ;
+	index_writer_ref *iw_ref ;
 	message->FindInt32("opcode", &opcode) ;
 
 	switch (opcode) {
@@ -217,35 +189,18 @@ Indexer :: HandleDeviceUpdate(BMessage *message)
 		
 		case B_DEVICE_UNMOUNTED :
 			message->FindInt32("device", &device) ;
-			volume.SetTo(device) ;
-			CloseIndex(&volume) ;
+			iw_ref = FindIndexWriterRef(device) ;
+			fIndexWriterList.RemoveItem(iw_ref) ;
+			kill_thread(iw_ref->thread) ;
+			delete_sem(iw_ref->sem) ;
+			delete iw_ref ;
 			break ;
 	}
 }
 
 
-void
-Indexer :: CloseIndex(BVolume *volume)
-{
-	// Just removes the index_writer_ref from fIndexWriterList for now.
-	// This means unmounting or unplugging the USB will cause the index
-	// to become corrupted. TODO.
-	index_writer_ref *ref ;
-	for (int i = 0 ; (ref = (index_writer_ref*)fIndexWriterList.ItemAt(i)) != NULL
-		; i++) {
-			if (ref->device == volume->Device()) {
-				fIndexWriterList.RemoveItem(i) ;
-				kill_thread(ref->thread) ;
-				delete_sem(ref->sem) ;
-				delete ref ;
-				break ;
-			}
-	}
-}
-
-
 index_writer_ref*
-Indexer :: FindIndexWriterRef(dev_t device)
+Indexer::FindIndexWriterRef(dev_t device)
 {
 	index_writer_ref *iter_ref ;
 	for (int i = 0 ; (iter_ref = (index_writer_ref*)fIndexWriterList.ItemAt(i))
@@ -260,45 +215,33 @@ Indexer :: FindIndexWriterRef(dev_t device)
 
 int32 add_document(void *data)
 {
-	index_writer_ref *ref = (index_writer_ref*)data ;
-	BList *entryList = ref->entryList ;
-	entry_ref *iter_ref ;
+	index_writer_ref *iw_ref = (index_writer_ref*)data ;
 	BMessage doneMessage(BEACON_THREAD_DONE) ;
-	doneMessage.AddInt32("device", ref->device) ;
+	doneMessage.AddInt32("device", iw_ref->device) ;
+	BList *entryList = iw_ref->entryList ;
+	entry_ref *iter_ref ;
 	BPath path ;
-	IndexWriter *indexWriter = ref->indexWriter ;
+	BeaconIndex *index = iw_ref->index ;
 	FileReader *fileReader ;
 	Document *doc ;
 
 	// Get path to the index directory on this particular
 	// volume.
-	BVolume volume(ref->device) ;
+	BVolume volume(iw_ref->device) ;
 	BDirectory dir ;
 	volume.GetRootDirectory(&dir) ;
 	path.SetTo(&dir) ;
 	path.Append("index") ;
 	dir.SetTo(path.Path()) ;
 
-	while (acquire_sem(ref->sem) >= B_NO_ERROR) {
+	while (acquire_sem(iw_ref->sem) >= B_NO_ERROR) {
 		for (int i = 0 ; (iter_ref = (entry_ref*)entryList->ItemAt(i)) != NULL
-			; i++) {
-				path.SetTo(iter_ref) ;
-				if (dir.Contains(path.Path()))
-					continue ;
-
-				fileReader = new FileReader(path.Path(), "ASCII") ;
-
-				doc = new Document ;
-				doc->add(*(new Field("contents", fileReader, 
-					Field::STORE_NO | Field::INDEX_TOKENIZED))) ;
-				doc->add(*(new Field ("path", path.Path(),
-					Field::STORE_YES | Field::INDEX_UNTOKENIZED))) ;
-				indexWriter->addDocument(doc) ;
-		}
+			; i++)
+				index->AddDocument(iter_ref) ;
 
 		entryList->MakeEmpty() ;
 		be_app->PostMessage(&doneMessage) ;
-		release_sem(ref->sem) ;
+		release_sem(iw_ref->sem) ;
 		suspend_thread(find_thread(NULL)) ;
 	}
 
