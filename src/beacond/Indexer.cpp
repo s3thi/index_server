@@ -47,7 +47,7 @@ Indexer::ReadyToRun()
 void
 Indexer::MessageReceived(BMessage *message)
 {
-	index_writer_ref *iw_ref = NULL ; 
+	index_ref *i_ref = NULL ; 
 	dev_t device ;
 	
 	switch (message->what) {
@@ -56,8 +56,8 @@ Indexer::MessageReceived(BMessage *message)
 			break ;
 		case BEACON_THREAD_DONE :
 			message->FindInt32("device", &device) ;
-			iw_ref = FindIndexWriterRef(device) ;
-			acquire_sem(iw_ref->sem) ;
+			i_ref = FindIndexWriterRef(device) ;
+			acquire_sem(i_ref->sem) ;
 		case B_NODE_MONITOR :
 			HandleDeviceUpdate(message) ;
 			break ;
@@ -77,9 +77,9 @@ Indexer::QuitRequested()
 	
 	fQueryFeeder->PostMessage(B_QUIT_REQUESTED) ;
 
-	index_writer_ref *ref ;
+	index_ref *ref ;
 	status_t exitValue ;
-	for (int i = 0 ; (ref = (index_writer_ref*)fIndexWriterList.ItemAt(i))
+	for (int i = 0 ; (ref = (index_ref*)fIndexWriterList.ItemAt(i))
 		!= NULL ; i++) {
 			delete_sem(ref->sem) ;
 			wait_for_thread(ref->thread, &exitValue) ;
@@ -104,23 +104,23 @@ Indexer::LoadSettings(BMessage *settings)
 void
 Indexer::UpdateIndex()
 {
-	index_writer_ref *iw_ref = NULL ;
+	index_ref *i_ref = NULL ;
 	entry_ref* e_ref = new entry_ref ;
 	dev_t device = -1 ;
 	while (fQueryFeeder->GetNextRef(e_ref) == B_OK) {
-		if (iw_ref == NULL || iw_ref->device != e_ref->device)
-			iw_ref = FindIndexWriterRef(e_ref->device) ;
+		if (i_ref == NULL || i_ref->device != e_ref->device)
+			i_ref = FindIndexWriterRef(e_ref->device) ;
 
-		if (iw_ref != NULL)
-			iw_ref->entryList->AddItem(e_ref) ;
+		if (i_ref != NULL)
+			i_ref->entryList->AddItem(e_ref) ;
 	}
 
 	// Resume the add_document threads after the list of files has been
 	// updated.
-	for (int i = 0 ; (iw_ref = (index_writer_ref*)fIndexWriterList.ItemAt(i))
+	for (int i = 0 ; (i_ref = (index_ref*)fIndexWriterList.ItemAt(i))
 		!= NULL ; i++) {
-			release_sem(iw_ref->sem) ;
-			resume_thread(iw_ref->thread) ;
+			release_sem(i_ref->sem) ;
+			resume_thread(i_ref->thread) ;
 	}
 }
 
@@ -133,39 +133,34 @@ Indexer::InitIndex(BVolume *volume)
 	if (!volume)
 		return error ;
 	
-	index_writer_ref *iw_ref = new index_writer_ref ;
+	index_ref *i_ref = new index_ref ;
 	char volume_name[B_FILE_NAME_LENGTH] ;
 	BDirectory dir ;
 	
-	iw_ref->device = volume->Device() ;
+	i_ref->device = volume->Device() ;
 	
 	volume->GetRootDirectory(&dir) ;
-	/*
-	if ((iw_ref->indexWriter = OpenIndex(&dir)) == NULL) {
-		delete iw_ref ;
-		return B_ERROR ;
-	}*/
-	iw_ref->index = new BeaconIndex(&dir) ;
+	i_ref->index = new BeaconIndex(&dir) ;
 	
 	volume->GetName(volume_name) ;
-	if ((iw_ref->sem = create_sem(1, volume_name)) < B_NO_ERROR) {
-		delete iw_ref ;
-		return iw_ref->sem ;
+	if ((i_ref->sem = create_sem(1, volume_name)) < B_NO_ERROR) {
+		delete i_ref ;
+		return i_ref->sem ;
 	}
 
-	if ((error = acquire_sem(iw_ref->sem)) < B_OK) {
-		delete iw_ref ;
+	if ((error = acquire_sem(i_ref->sem)) < B_OK) {
+		delete i_ref ;
 		return error ;
 	}
 	
-	if ((iw_ref->thread = spawn_thread(add_document, volume_name, B_LOW_PRIORITY,
-		iw_ref)) < B_NO_ERROR) {
-			delete iw_ref ;
-			return iw_ref->thread ;
+	if ((i_ref->thread = spawn_thread(add_document, volume_name, B_LOW_PRIORITY,
+		i_ref)) < B_NO_ERROR) {
+			delete i_ref ;
+			return i_ref->thread ;
 	}
 
-	iw_ref->entryList = new BList(10) ;
-	fIndexWriterList.AddItem(iw_ref) ;
+	i_ref->entryList = new BList(10) ;
+	fIndexWriterList.AddItem(i_ref) ;
 	
 	return B_OK ;
 }
@@ -177,7 +172,7 @@ Indexer::HandleDeviceUpdate(BMessage *message)
 	int32 opcode ;
 	dev_t device ;
 	BVolume volume ;
-	index_writer_ref *iw_ref ;
+	index_ref *i_ref ;
 	message->FindInt32("opcode", &opcode) ;
 
 	switch (opcode) {
@@ -189,21 +184,21 @@ Indexer::HandleDeviceUpdate(BMessage *message)
 		
 		case B_DEVICE_UNMOUNTED :
 			message->FindInt32("device", &device) ;
-			iw_ref = FindIndexWriterRef(device) ;
-			fIndexWriterList.RemoveItem(iw_ref) ;
-			kill_thread(iw_ref->thread) ;
-			delete_sem(iw_ref->sem) ;
-			delete iw_ref ;
+			i_ref = FindIndexWriterRef(device) ;
+			fIndexWriterList.RemoveItem(i_ref) ;
+			kill_thread(i_ref->thread) ;
+			delete_sem(i_ref->sem) ;
+			delete i_ref ;
 			break ;
 	}
 }
 
 
-index_writer_ref*
+index_ref*
 Indexer::FindIndexWriterRef(dev_t device)
 {
-	index_writer_ref *iter_ref ;
-	for (int i = 0 ; (iter_ref = (index_writer_ref*)fIndexWriterList.ItemAt(i))
+	index_ref *iter_ref ;
+	for (int i = 0 ; (iter_ref = (index_ref*)fIndexWriterList.ItemAt(i))
 		!= NULL ; i++) {
 			if (iter_ref->device == device)
 				return iter_ref ;
@@ -215,33 +210,33 @@ Indexer::FindIndexWriterRef(dev_t device)
 
 int32 add_document(void *data)
 {
-	index_writer_ref *iw_ref = (index_writer_ref*)data ;
+	index_ref *i_ref = (index_ref*)data ;
 	BMessage doneMessage(BEACON_THREAD_DONE) ;
-	doneMessage.AddInt32("device", iw_ref->device) ;
-	BList *entryList = iw_ref->entryList ;
+	doneMessage.AddInt32("device", i_ref->device) ;
+	BList *entryList = i_ref->entryList ;
 	entry_ref *iter_ref ;
 	BPath path ;
-	BeaconIndex *index = iw_ref->index ;
+	BeaconIndex *index = i_ref->index ;
 	FileReader *fileReader ;
 	Document *doc ;
 
 	// Get path to the index directory on this particular
 	// volume.
-	BVolume volume(iw_ref->device) ;
+	BVolume volume(i_ref->device) ;
 	BDirectory dir ;
 	volume.GetRootDirectory(&dir) ;
 	path.SetTo(&dir) ;
 	path.Append("index") ;
 	dir.SetTo(path.Path()) ;
 
-	while (acquire_sem(iw_ref->sem) >= B_NO_ERROR) {
+	while (acquire_sem(i_ref->sem) >= B_NO_ERROR) {
 		for (int i = 0 ; (iter_ref = (entry_ref*)entryList->ItemAt(i)) != NULL
 			; i++)
 				index->AddDocument(iter_ref) ;
 
 		entryList->MakeEmpty() ;
 		be_app->PostMessage(&doneMessage) ;
-		release_sem(iw_ref->sem) ;
+		release_sem(i_ref->sem) ;
 		suspend_thread(find_thread(NULL)) ;
 	}
 

@@ -21,7 +21,7 @@ using namespace lucene::analysis::standard ;
 using namespace lucene::util ;
 
 
-struct index_writer_ref {
+struct index_ref {
 	BeaconIndex *index ;
 	BList *entryList ;
 	dev_t device ;
@@ -47,7 +47,7 @@ class Indexer : public BApplication {
 		bool TranslatorAvailable(entry_ref *ref) ;
 		void HandleDeviceUpdate(BMessage *message) ;
 		void CloseIndex(BVolume *volume) ;
-		index_writer_ref* FindIndexWriterRef(dev_t device) ;
+		index_ref* FindIndexWriterRef(dev_t device) ;
 
 		Feeder 				*fQueryFeeder ;
 		StandardAnalyzer 	fStandardAnalyzer ;
