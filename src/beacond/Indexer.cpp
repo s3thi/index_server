@@ -54,10 +54,6 @@ Indexer::MessageReceived(BMessage *message)
 		case BEACON_UPDATE_INDEX :
 			UpdateIndex() ;
 			break ;
-		case BEACON_THREAD_DONE :
-			message->FindInt32("device", &device) ;
-			i_ref = FindIndexWriterRef(device) ;
-			acquire_sem(i_ref->sem) ;
 		case B_NODE_MONITOR :
 			HandleDeviceUpdate(message) ;
 			break ;
@@ -111,17 +107,19 @@ Indexer::UpdateIndex()
 		if (i_ref == NULL || i_ref->device != e_ref->device)
 			i_ref = FindIndexWriterRef(e_ref->device) ;
 
-		if (i_ref != NULL)
+		if (i_ref != NULL) {
+			i_ref->entryListLocker.Lock() ;
 			i_ref->entryList->AddItem(e_ref) ;
+			i_ref->entryListLocker.Unlock() ;
+			e_ref = new entry_ref ;
+		}
 	}
 
 	// Resume the add_document threads after the list of files has been
 	// updated.
 	for (int i = 0 ; (i_ref = (index_ref*)fIndexWriterList.ItemAt(i))
-		!= NULL ; i++) {
+		!= NULL ; i++)
 			release_sem(i_ref->sem) ;
-			resume_thread(i_ref->thread) ;
-	}
 }
 
 
@@ -157,7 +155,8 @@ Indexer::InitIndex(BVolume *volume)
 		i_ref)) < B_NO_ERROR) {
 			delete i_ref ;
 			return i_ref->thread ;
-	}
+	} else
+		resume_thread(i_ref->thread) ;
 
 	i_ref->entryList = new BList(10) ;
 	fIndexWriterList.AddItem(i_ref) ;
@@ -211,34 +210,21 @@ Indexer::FindIndexWriterRef(dev_t device)
 int32 add_document(void *data)
 {
 	index_ref *i_ref = (index_ref*)data ;
-	BMessage doneMessage(BEACON_THREAD_DONE) ;
-	doneMessage.AddInt32("device", i_ref->device) ;
 	BList *entryList = i_ref->entryList ;
 	entry_ref *iter_ref ;
-	BPath path ;
 	BeaconIndex *index = i_ref->index ;
-	FileReader *fileReader ;
-	Document *doc ;
 
-	// Get path to the index directory on this particular
-	// volume.
-	BVolume volume(i_ref->device) ;
-	BDirectory dir ;
-	volume.GetRootDirectory(&dir) ;
-	path.SetTo(&dir) ;
-	path.Append("index") ;
-	dir.SetTo(path.Path()) ;
+	while (acquire_sem(i_ref->sem) ==B_OK) {
+		i_ref->entryListLocker.Lock() ;
+		while ((iter_ref = (entry_ref*)entryList->ItemAt(0)) != NULL) {
+			index->AddDocument(iter_ref) ;
+			entryList->RemoveItem(iter_ref) ;
+			delete iter_ref ;
+		}
 
-	while (acquire_sem(i_ref->sem) >= B_NO_ERROR) {
-		for (int i = 0 ; (iter_ref = (entry_ref*)entryList->ItemAt(i)) != NULL
-			; i++)
-				index->AddDocument(iter_ref) ;
-
-		entryList->MakeEmpty() ;
-		be_app->PostMessage(&doneMessage) ;
-		release_sem(i_ref->sem) ;
-		suspend_thread(find_thread(NULL)) ;
+		i_ref->entryListLocker.Unlock() ;
 	}
 
+	index->Close() ;
 	return B_OK ;
 }

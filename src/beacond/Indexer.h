@@ -27,6 +27,7 @@ struct index_ref {
 	dev_t device ;
 	thread_id thread ;
 	sem_id sem ;
+	BLocker entryListLocker ;
 } ;
 
 int32 add_document(void *data) ;

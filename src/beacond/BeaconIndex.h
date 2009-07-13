@@ -19,18 +19,19 @@ using namespace lucene::analysis::standard ;
 
 class BeaconIndex {
 	public:
-		BeaconIndex(BDirectory *dir) ;
+		BeaconIndex() ;
+		BeaconIndex(const BDirectory *dir) ;
 		~BeaconIndex() ;
 
-		status_t SetTo(BDirectory *dir) ;
-		status_t AddDocument(entry_ref *e_ref) ;
+		status_t SetTo(const BDirectory *dir) ;
+		status_t AddDocument(const entry_ref *e_ref) ;
 		void Close() ;
 		status_t InitCheck() ;
 
 	private:
-		IndexWriter* OpenIndex(BDirectory *dir) ;
-		bool TranslatorAvailable(entry_ref *e_ref) ;
-		bool Excluded(entry_ref *e_ref) ;
+		IndexWriter* OpenIndex(const BDirectory *dir) ;
+		bool TranslatorAvailable(const entry_ref *e_ref) ;
+		bool Excluded(const entry_ref *e_ref) ;
 
 		status_t			fStatus ;
 		IndexWriter			*fIndexWriter ;

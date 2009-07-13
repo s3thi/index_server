@@ -7,18 +7,23 @@
  */
 
 #include "BeaconIndex.h"
+#include "support.h"
 
 #include <Node.h>
 #include <NodeInfo.h>
 #include <Path.h>
-
-#include <iostream>
-using namespace std ;
+#include <string.h>
 
 using namespace lucene::util ;
 using namespace lucene::document ;
 
-BeaconIndex::BeaconIndex(BDirectory *dir)
+BeaconIndex::BeaconIndex()
+	: fStatus(B_NO_INIT)
+{
+}
+
+
+BeaconIndex::BeaconIndex(const BDirectory *dir)
 	: fStatus(B_NO_INIT)
 {
 	SetTo(dir) ;
@@ -39,20 +44,19 @@ BeaconIndex::InitCheck()
 
 
 status_t
-BeaconIndex::SetTo(BDirectory *dir)
+BeaconIndex::SetTo(const BDirectory *dir)
 {
-	if (InitCheck() == B_OK) {
+	BPath indexPath(dir) ;
+	indexPath.Append("index") ;
+	
+	if (InitCheck() == B_OK)
 		Close() ;
-		delete fIndexWriter ;
-	}
 
 	fIndexWriter = OpenIndex(dir) ;
 	if (fIndexWriter == NULL)
 		fStatus = B_ERROR ;
 	else {
 		fStatus = B_OK ;
-		BPath indexPath(dir) ;
-		indexPath.Append("index") ;
 		fIndexDirectory.SetTo(indexPath.Path()) ;
 	}
 
@@ -61,7 +65,7 @@ BeaconIndex::SetTo(BDirectory *dir)
 
 
 IndexWriter*
-BeaconIndex::OpenIndex(BDirectory *dir)
+BeaconIndex::OpenIndex(const BDirectory *dir)
 {
 	IndexWriter* indexWriter = NULL ;
 	BPath path(dir) ;
@@ -98,12 +102,13 @@ BeaconIndex::Close()
 {
 	fIndexWriter->optimize() ;
 	fIndexWriter->close() ;
+	delete fIndexWriter ;
 	fStatus = B_NO_INIT ;
 }
 
 
 bool
-BeaconIndex::TranslatorAvailable(entry_ref *ref)
+BeaconIndex::TranslatorAvailable(const entry_ref *ref)
 {
 	if (!ref)
 		return false ;
@@ -123,7 +128,7 @@ BeaconIndex::TranslatorAvailable(entry_ref *ref)
 
 
 status_t
-BeaconIndex::AddDocument(entry_ref *ref)
+BeaconIndex::AddDocument(const entry_ref *ref)
 {
 	if (fStatus != B_OK)
 		return fStatus ;
@@ -146,14 +151,17 @@ BeaconIndex::AddDocument(entry_ref *ref)
 		return B_ERROR ;
 	}
 
+	delete fileReader ;
 	return B_OK ;
 }
 
 
 bool
-BeaconIndex :: Excluded(entry_ref *e_ref)
+BeaconIndex :: Excluded(const entry_ref *e_ref)
 {
 	BEntry entry(e_ref) ;
+	
+	BPath path(&fIndexDirectory) ;
 	if (fIndexDirectory.Contains(&entry))
 		return true ;
 	
