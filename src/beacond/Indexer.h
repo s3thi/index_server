@@ -21,6 +21,8 @@ using namespace lucene::analysis::standard ;
 using namespace lucene::util ;
 
 
+int32 add_document(void *data) ;
+
 struct index_ref {
 	BeaconIndex *index ;
 	BList *entryList ;
@@ -29,8 +31,6 @@ struct index_ref {
 	sem_id sem ;
 	BLocker entryListLocker ;
 } ;
-
-int32 add_document(void *data) ;
 
 class Indexer : public BApplication {
 	public :

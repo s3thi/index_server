@@ -59,3 +59,20 @@ status_t save_settings(BMessage *message)
 	return ret ;
 }
 
+
+Logger* open_log(DebugLevel level, bool replace)
+{
+	Logger *logger = NULL ;
+	BPath logPath ;
+	if(find_directory(B_USER_CONFIG_DIRECTORY, &logPath) == B_OK) {
+		logPath.Append("settings/Beacon/") ;
+		if(create_directory(logPath.Path(), 0777) == B_OK) {
+			logPath.Append("log.txt") ;
+
+			logger = new Logger(logPath.Path(), level, replace) ;
+		}
+	}
+
+	return logger ;
+}
+

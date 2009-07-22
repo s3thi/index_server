@@ -17,6 +17,8 @@
 #include <string.h>
 
 
+extern Logger* logger ;
+
 Feeder :: Feeder(BHandler *target)
 	: BLooper("feeder"),
 	  fMonitorRemovableDevices(false),
@@ -115,7 +117,11 @@ Feeder :: AddQuery(BVolume *volume)
 
 	BQuery *query = new BQuery ;	
 	query->SetVolume(volume) ;
-	query->SetPredicate("last_modified > %now%") ;
+	
+	// Only look for *.txt files until the last_modified problem
+	// is fixed.
+	query->SetPredicate("name = *.txt") ;
+	// query->SetPredicate("last_modified > %now%") ;
 	query->SetTarget(this) ;
 	
 	if (query->Fetch() == B_OK) {

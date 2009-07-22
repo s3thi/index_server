@@ -7,14 +7,16 @@
  */
 
 #include "Indexer.h"
+#include "Logger.h"
+#include "support.h"
 
-#include "Feeder.h"
-#include <Entry.h>
-#include <File.h>
+Logger* logger ;
 
 int main()
 {
+	logger = open_log(BEACON_DEBUG_VERBOSE, true) ;
 	Indexer beaconApp ;
 	beaconApp.Run() ;
+	logger->Close() ;
 	return 0 ;
 }

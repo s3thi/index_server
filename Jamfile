@@ -1,8 +1,8 @@
 # Jamfile in $(TOP)
 # For now, using a temporary build system to get stuff done.
 
-LINKLIBS = -lbe -lclucene -lstdc++ ;
-C++FLAGS = -ggdb ;
+LINKLIBS = -lbe -lclucene ;
+C++FLAGS = -ggdb -DDEBUG ;
 
 SubDir TOP ;
 

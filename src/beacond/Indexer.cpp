@@ -8,6 +8,7 @@
 
 #include "Indexer.h"
 #include "support.h"
+#include "Logger.h"
 
 #include <Directory.h>
 #include <Entry.h>
@@ -19,10 +20,13 @@
 using namespace lucene::document ;
 
 
+extern Logger* logger ;
+
 Indexer::Indexer()
 	: BApplication("application/x-vnd.Haiku-BeaconDaemon"),
 	  fIndexWriterList(1)
 {
+	logger->Always("Starting application.") ;
 	BMessage settings('sett') ;
 	if (load_settings(&settings) == B_OK)
 		LoadSettings(&settings) ;
@@ -79,6 +83,7 @@ Indexer::QuitRequested()
 		!= NULL ; i++) {
 			delete_sem(ref->sem) ;
 			wait_for_thread(ref->thread, &exitValue) ;
+			ref->index->Close() ;
 	}
 
 	return true ;
@@ -132,16 +137,15 @@ Indexer::InitIndex(BVolume *volume)
 		return error ;
 	
 	index_ref *i_ref = new index_ref ;
-	char volume_name[B_FILE_NAME_LENGTH] ;
+	char volumeName[B_FILE_NAME_LENGTH] ;
 	BDirectory dir ;
 	
 	i_ref->device = volume->Device() ;
 	
-	volume->GetRootDirectory(&dir) ;
-	i_ref->index = new BeaconIndex(&dir) ;
+	i_ref->index = new BeaconIndex(volume) ;
 	
-	volume->GetName(volume_name) ;
-	if ((i_ref->sem = create_sem(1, volume_name)) < B_NO_ERROR) {
+	volume->GetName(volumeName) ;
+	if ((i_ref->sem = create_sem(1, volumeName)) < B_NO_ERROR) {
 		delete i_ref ;
 		return i_ref->sem ;
 	}
@@ -151,7 +155,7 @@ Indexer::InitIndex(BVolume *volume)
 		return error ;
 	}
 	
-	if ((i_ref->thread = spawn_thread(add_document, volume_name, B_LOW_PRIORITY,
+	if ((i_ref->thread = spawn_thread(add_document, volumeName, B_LOW_PRIORITY,
 		i_ref)) < B_NO_ERROR) {
 			delete i_ref ;
 			return i_ref->thread ;
@@ -218,13 +222,11 @@ int32 add_document(void *data)
 		i_ref->entryListLocker.Lock() ;
 		while ((iter_ref = (entry_ref*)entryList->ItemAt(0)) != NULL) {
 			index->AddDocument(iter_ref) ;
-			entryList->RemoveItem(iter_ref) ;
-			delete iter_ref ;
 		}
 
+		entryList->MakeEmpty() ;
 		i_ref->entryListLocker.Unlock() ;
 	}
 
-	index->Close() ;
 	return B_OK ;
 }

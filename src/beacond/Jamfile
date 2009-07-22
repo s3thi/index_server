@@ -6,6 +6,7 @@ Main beacond :
 	Feeder.cpp
 	Indexer.cpp
 	BeaconIndex.cpp
+	Logger.cpp
 	support.cpp
 	main.cpp
 ;
