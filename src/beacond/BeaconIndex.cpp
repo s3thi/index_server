@@ -48,21 +48,15 @@ BeaconIndex::InitCheck()
 status_t
 BeaconIndex::SetTo(const BVolume *volume)
 {
-	if (InitCheck() == B_OK)
+	if (fStatus == B_OK)
 		Close() ;
 	
 	BDirectory dir ;
 	volume->GetRootDirectory(&dir) ;
 	fIndexPath.SetTo(&dir) ;
 	fIndexPath.Append("index") ;
-	logger->Verbose("Creating BeaconIndex on %s", fIndexPath.Path()) ;
-	fIndexDirectory.SetTo(fIndexPath.Path()) ;
-
-	if ((fIndexWriter = OpenIndexWriter()) != NULL)
-		fStatus = B_OK ;
-	else
-		fStatus = B_ERROR ;
-
+	
+	fStatus = fIndexPath.InitCheck() ;
 	return fStatus ;
 }
 
@@ -82,25 +76,9 @@ BeaconIndex::OpenIndexWriter()
 			indexWriter = new IndexWriter(fIndexPath.Path(), &fStandardAnalyzer, 
 				false) ;
 		} catch (CLuceneError &error) {
-			// The index might be corrupted. Clean it out and create it again.
-			// NOTE: This is a hack. Remove this from the final code.
-			/*
-			if (error.number() == CL_ERR_IO) {
-				BEntry entry ;
-				BDirectory indexDirectory(path.Path()) ;
-				while (indexDirectory.GetNextEntry(&entry, false) == B_OK)
-					entry.Remove() ;
-
-				indexWriter = OpenIndexWriter() ;
-				
-			} else
-				return indexWriter ;
-			*/
-			
 			logger->Error("Failed to open IndexWriter.") ;
 			logger->Error("Try deleting the indexes and running the program again.") ;
 			logger->Error("Failed with error: %s", error.what()) ;
-
 		}
 	} else {
 		indexWriter = new IndexWriter(fIndexPath.Path(), &fStandardAnalyzer,
@@ -116,43 +94,101 @@ BeaconIndex::OpenIndexReader()
 {
 	IndexReader* indexReader = NULL ;
 	
-	BEntry entry(&fIndexDirectory, NULL) ;
+	BEntry entry(fIndexPath.Path(), NULL) ;
 	if (!entry.Exists())
 		return indexReader ;
 	
 	if (IndexReader::indexExists(fIndexPath.Path())) {
 		try {
 			indexReader = IndexReader::open(fIndexPath.Path()) ;
-			return indexReader ;
 		} catch (CLuceneError &error) {
 			logger->Error("Could not open IndexReader.") ;
 			logger->Error("Failed with error: %s", error.what()) ;
-			return indexReader ;
 		}
-	} else
-		return indexReader ;
+	}
+
+	return indexReader ;
+}
+
+
+void
+BeaconIndex::Commit()
+{
+	char* path ;
+	Term* term ;
+	int count ;
+	
+	IndexReader *reader = OpenIndexReader() ;
+	if(reader == NULL && IndexReader::indexExists(fIndexPath.Path()))
+		return ;
+	else if (IndexReader::indexExists(fIndexPath.Path())) {
+		for(int i = 0 ; (path = (char*)fIndexQueue.ItemAt(i)) != NULL ; i++) {
+			term = new Term("path", path) ;
+			count = reader->deleteDocuments(term) ;
+			delete term ;
+		}
+
+		for(int i = 0 ; (path = (char*)fDeleteQueue.ItemAt(i)) != NULL ; i++) {
+			term = new Term("path", path) ;
+			reader->deleteDocuments(term) ;
+			delete term ;
+			delete path ;
+		}
+
+		fDeleteQueue.MakeEmpty() ;
+		reader->close() ;
+		delete reader ;
+	}
+
+	IndexWriter *writer = OpenIndexWriter() ;
+	if(writer == NULL)
+		return ;
+	
+	FileReader *fileReader ;
+	Document *doc ;
+	
+	for(int i = 0 ; (path = (char*)fIndexQueue.ItemAt(i)) != NULL ; i++) {
+		fileReader = new FileReader(path, "ASCII") ;
+
+		doc = new Document ;
+		doc->add(*(new Field("contents", fileReader, 
+			Field::STORE_NO | Field::INDEX_TOKENIZED))) ;
+		doc->add(*(new Field ("path", path,
+			Field::STORE_YES | Field::INDEX_UNTOKENIZED))) ;
+
+		try {
+			writer->addDocument(doc) ;
+		} catch (CLuceneError &error) {
+			logger->Error("Could not index %s", path) ;
+		}
+
+		delete fileReader ;
+		delete path ;
+	}
+
+
+	fIndexQueue.MakeEmpty() ;
+	writer->close() ;
+	delete writer ;
 }
 
 
 void
 BeaconIndex::Close()
 {
-	fIndexWriter->optimize() ;
-	fIndexWriter->close() ;
-	delete fIndexWriter ;
 	fStatus = B_NO_INIT ;
 }
 
 
 bool
-BeaconIndex::TranslatorAvailable(const entry_ref *ref)
+BeaconIndex::TranslatorAvailable(const entry_ref *e_ref)
 {
-	if (!ref)
+	if (!e_ref)
 		return false ;
 
 	// For now, just return true if the file is a plain text file.
 	// Will change in the future when we have more translators.
-	BNode node(ref) ;
+	BNode node(e_ref) ;
 	BNodeInfo nodeInfo(&node) ;
 
 	char MIMEString[B_MIME_TYPE_LENGTH] ;
@@ -167,32 +203,37 @@ BeaconIndex::TranslatorAvailable(const entry_ref *ref)
 status_t
 BeaconIndex::AddDocument(const entry_ref *e_ref)
 {
-	if (!e_ref) {
+	if(fStatus != B_OK)
+		return fStatus ;
+	else if(!e_ref)
 		return B_BAD_VALUE ;
-	}
-	else if (!TranslatorAvailable(e_ref)) {
+	else if(!TranslatorAvailable(e_ref))
 		return BEACON_NOT_SUPPORTED ;
-	}
-	else if (InIndexDirectory(e_ref)) {
+	else if(InIndexDirectory(e_ref))
 		return BEACON_FILE_EXCLUDED ;
-	}
 	
 	BPath path(e_ref) ;
+	char *str_path = new char[B_PATH_NAME_LENGTH] ;
+	strcpy(str_path, path.Path()) ;
+	logger->Verbose("Adding %s.", str_path) ;
+	fIndexQueue.AddItem(str_path) ;
 	
+	/*
 	// Remove the document from the index.
-	IndexReader *indexReader = OpenIndexReader() ;
-	if(indexReader != NULL) {
-		Term *term = new Term("path", path.Path()) ;
-		indexReader->deleteDocuments(term) ;
-		indexReader->close() ;
-	} else {
-		logger->Error("Did not check for duplicates of document: %s.",
-			path.Path()) ;
+	Term *term = new Term("path", path.Path()) ;
+	int count ;
+	try {
+		count = fIndexReader->deleteDocuments(term) ;
+		logger->Verbose("Found and removed %d duplicates.", count) ;
+	} catch (CLuceneError &error) {
+		logger->Error("Could not check for duplicates of %s", path.Path()) ;
+		logger->Error("Failed with error: %s", error.what()) ;
 	}
-	// delete indexReader ;
-	// delete term ;
 
+	delete term ;
+	
 	// Now add the new document.
+	status_t status = B_ERROR ;
 	FileReader *fileReader = new FileReader(path.Path(), "ASCII") ;
 	char* lastModified = GetLastModified(e_ref) ;
 
@@ -206,29 +247,25 @@ BeaconIndex::AddDocument(const entry_ref *e_ref)
 
 	try {
 		fIndexWriter->addDocument(doc) ;
+		status = B_OK ;
 	} catch (CLuceneError &error) {
-		delete fileReader ;
-		return B_ERROR ;
+		status = B_ERROR ;
 	}
 
 	delete lastModified ;
 	delete fileReader ;
-
-	return B_OK ;
-}
-
-
-void
-BeaconIndex::RemoveDocument(const Document *doc)
-{
-	fDeleteQueue.AddItem((void*)doc) ;
+	return status ;
+	*/
 }
 
 
 void
 BeaconIndex::RemoveDocument(const entry_ref* e_ref)
 {
-	fDeleteQueue.AddItem((void*)DocumentForRef(e_ref)) ;
+	BPath path(e_ref) ;
+	char* stringPath = new char[B_PATH_NAME_LENGTH] ;
+	strcpy(stringPath, path.Path()) ;
+	fDeleteQueue.AddItem(stringPath) ;
 }
 
 
@@ -236,9 +273,8 @@ bool
 BeaconIndex::InIndexDirectory(const entry_ref *e_ref)
 {
 	BEntry entry(e_ref) ;
-	
-	BPath path(&fIndexDirectory) ;
-	if (fIndexDirectory.Contains(&entry))
+	BDirectory indexDir(fIndexPath.Path()) ;
+	if (indexDir.Contains(&entry))
 		return true ;
 	
 	return false ;

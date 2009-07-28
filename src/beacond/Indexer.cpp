@@ -20,8 +20,6 @@
 using namespace lucene::document ;
 
 
-extern Logger* logger ;
-
 Indexer::Indexer()
 	: BApplication("application/x-vnd.Haiku-BeaconDaemon"),
 	  fIndexWriterList(1)
@@ -222,8 +220,11 @@ int32 add_document(void *data)
 		i_ref->entryListLocker.Lock() ;
 		while ((iter_ref = (entry_ref*)entryList->ItemAt(0)) != NULL) {
 			index->AddDocument(iter_ref) ;
+			entryList->RemoveItem((int32)0) ;
+			delete iter_ref ;
 		}
 
+		index->Commit() ;
 		entryList->MakeEmpty() ;
 		i_ref->entryListLocker.Unlock() ;
 	}

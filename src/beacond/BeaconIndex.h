@@ -30,6 +30,7 @@ class BeaconIndex {
 		status_t AddDocument(const entry_ref *e_ref) ;
 		void RemoveDocument(const entry_ref *e_ref) ;
 		void RemoveDocument(const Document *doc) ;
+		void Commit() ;
 		void Close() ;
 		status_t InitCheck() ;
 
@@ -43,8 +44,6 @@ class BeaconIndex {
 
 		status_t			fStatus ;
 		StandardAnalyzer	fStandardAnalyzer ;
-		IndexWriter			*fIndexWriter ;
-		BDirectory			fIndexDirectory ;
 		BPath				fIndexPath ;
 		BList				fIndexQueue ;
 		BList				fDeleteQueue ;

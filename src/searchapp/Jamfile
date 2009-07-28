@@ -1,0 +1,8 @@
+# Jamfile in $(TOP)/src/searchapp
+
+SubDir TOP src searchapp ;
+
+Main searchapp :
+	SearchApp.cpp
+	SearchWindow.cpp
+;

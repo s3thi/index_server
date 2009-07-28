@@ -5,3 +5,4 @@ SubDir TOP src ;
 # Rules go here.
 
 SubInclude TOP src beacond ;
+SubInclude TOP src searchapp ;
