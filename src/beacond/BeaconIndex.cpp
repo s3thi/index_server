@@ -17,6 +17,7 @@ using namespace lucene::util ;
 using namespace lucene::search ;
 using namespace lucene::queryParser ;
 
+
 BeaconIndex::BeaconIndex()
 	: fStatus(B_NO_INIT)
 {
@@ -118,6 +119,7 @@ BeaconIndex::Commit()
 	Term* term ;
 	int count ;
 	
+	// First, remove all duplicates (if they exist).
 	IndexReader *reader = OpenIndexReader() ;
 	if(reader == NULL && IndexReader::indexExists(fIndexPath.Path()))
 		return ;
@@ -141,8 +143,12 @@ BeaconIndex::Commit()
 	}
 
 	IndexWriter *writer = OpenIndexWriter() ;
-	if(writer == NULL)
+	if(writer == NULL) {
+		// TODO: Close and delete this BeaconIndex if opening
+		// the IndexWriter fails.
+		fStatus = B_ERROR ;
 		return ;
+	}
 	
 	FileReader *fileReader ;
 	Document *doc ;
@@ -215,57 +221,24 @@ BeaconIndex::AddDocument(const entry_ref *e_ref)
 	BPath path(e_ref) ;
 	char *str_path = new char[B_PATH_NAME_LENGTH] ;
 	strcpy(str_path, path.Path()) ;
-	logger->Verbose("Adding %s.", str_path) ;
 	fIndexQueue.AddItem(str_path) ;
 	
-	/*
-	// Remove the document from the index.
-	Term *term = new Term("path", path.Path()) ;
-	int count ;
-	try {
-		count = fIndexReader->deleteDocuments(term) ;
-		logger->Verbose("Found and removed %d duplicates.", count) ;
-	} catch (CLuceneError &error) {
-		logger->Error("Could not check for duplicates of %s", path.Path()) ;
-		logger->Error("Failed with error: %s", error.what()) ;
-	}
-
-	delete term ;
-	
-	// Now add the new document.
-	status_t status = B_ERROR ;
-	FileReader *fileReader = new FileReader(path.Path(), "ASCII") ;
-	char* lastModified = GetLastModified(e_ref) ;
-
-	Document *doc = new Document ;
-	doc->add(*(new Field("contents", fileReader, 
-		Field::STORE_NO | Field::INDEX_TOKENIZED))) ;
-	doc->add(*(new Field ("path", path.Path(),
-		Field::STORE_YES | Field::INDEX_UNTOKENIZED))) ;
-	doc->add(*(new Field ("last_modified", lastModified,
-		Field::STORE_YES | Field::INDEX_UNTOKENIZED))) ;
-
-	try {
-		fIndexWriter->addDocument(doc) ;
-		status = B_OK ;
-	} catch (CLuceneError &error) {
-		status = B_ERROR ;
-	}
-
-	delete lastModified ;
-	delete fileReader ;
-	return status ;
-	*/
+	return B_OK ;
 }
 
 
-void
+status_t
 BeaconIndex::RemoveDocument(const entry_ref* e_ref)
 {
+	if(!e_ref)
+		return B_BAD_VALUE ;
+	
 	BPath path(e_ref) ;
 	char* stringPath = new char[B_PATH_NAME_LENGTH] ;
 	strcpy(stringPath, path.Path()) ;
 	fDeleteQueue.AddItem(stringPath) ;
+	
+	return B_OK ;
 }
 
 
@@ -278,27 +251,6 @@ BeaconIndex::InIndexDirectory(const entry_ref *e_ref)
 		return true ;
 	
 	return false ;
-}
-
-
-Document*
-BeaconIndex::DocumentForRef(const entry_ref *e_ref)
-{
-	BEntry entry(e_ref) ;
-	BPath filePath(&entry) ;
-	
-	IndexSearcher indexSearcher(fIndexPath.Path()) ;
-	
-	Term term("path", filePath.Path()) ;
-	Query *query = new TermQuery(&term) ;
-	Hits *hits = indexSearcher.search(query) ;
-
-	if (hits->length() == 0)
-		return NULL ;
-	else {
-		Document *doc = new Document(hits->doc(0)) ;
-		return doc ;
-	}
 }
 
 

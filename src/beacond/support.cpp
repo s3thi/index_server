@@ -14,6 +14,7 @@
 #include <Message.h>
 #include <Path.h>
 
+
 status_t load_settings(BMessage* message)
 {
 	status_t ret = B_BAD_VALUE ;

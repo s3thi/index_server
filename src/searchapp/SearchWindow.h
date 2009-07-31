@@ -6,11 +6,12 @@
  *		Ankur Sethi (get.me.ankur@gmail.com)
  */
 
-#ifndef SEARCH_WINDOW_H
-#define SEARCH_WINDOW_H
+#ifndef _SEARCH_WINDOW_H_
+#define _SEARCH_WINDOW_H
 
 #include <Button.h>
 #include <ListView.h>
+#include <ScrollView.h>
 #include <TextControl.h>
 #include <Window.h>
 
@@ -28,6 +29,7 @@ class SearchWindow : public BWindow {
 		BButton			*fSearchButton ;
 		BTextControl	*fSearchField ;
 		BListView		*fSearchResults ;
+		BScrollView		*fScrollView ;
 } ;
 
-#endif
+#endif /* _SEARCH_WINDOW_H_ */

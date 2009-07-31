@@ -28,8 +28,8 @@ class BeaconIndex {
 
 		status_t SetTo(const BVolume *volume) ;
 		status_t AddDocument(const entry_ref *e_ref) ;
-		void RemoveDocument(const entry_ref *e_ref) ;
-		void RemoveDocument(const Document *doc) ;
+		status_t RemoveDocument(const entry_ref *e_ref) ;
+		status_t RemoveDocument(const Document *doc) ;
 		void Commit() ;
 		void Close() ;
 		status_t InitCheck() ;
@@ -39,7 +39,6 @@ class BeaconIndex {
 		IndexReader* OpenIndexReader() ;
 		bool TranslatorAvailable(const entry_ref *e_ref) ;
 		bool InIndexDirectory(const entry_ref *e_ref) ;
-		Document* DocumentForRef(const entry_ref *e_ref) ;
 		char* GetLastModified(const entry_ref *e_ref) ;
 
 		status_t			fStatus ;
@@ -48,7 +47,6 @@ class BeaconIndex {
 		BList				fIndexQueue ;
 		BList				fDeleteQueue ;
 } ;
-
 
 #endif /* _BEACON_INDEX_H */
 

@@ -5,4 +5,5 @@ SubDir TOP src searchapp ;
 Main searchapp :
 	SearchApp.cpp
 	SearchWindow.cpp
+	BeaconSearcher.cpp
 ;

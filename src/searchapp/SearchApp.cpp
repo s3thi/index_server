@@ -10,7 +10,7 @@
 
 
 SearchApp::SearchApp()
-	: BApplication(APP_SIGNATURE)
+	: BApplication(kAppSignature)
 {
 	fSearchWindow = new SearchWindow(BRect(100, 100, 500, 500)) ;
 	fSearchWindow->Show() ;
@@ -24,3 +24,4 @@ int main()
 
 	return 0 ;
 }
+

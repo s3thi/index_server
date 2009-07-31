@@ -17,7 +17,7 @@
 #include <string.h>
 
 
-Feeder :: Feeder(BHandler *target)
+Feeder::Feeder(BHandler *target)
 	: BLooper("feeder"),
 	  fMonitorRemovableDevices(false),
 	  fQueryList(1),
@@ -40,7 +40,7 @@ Feeder :: Feeder(BHandler *target)
 
 
 void
-Feeder :: MessageReceived(BMessage *message)
+Feeder::MessageReceived(BMessage *message)
 {
 	switch (message->what) {
 		case B_QUERY_UPDATE:
@@ -56,14 +56,14 @@ Feeder :: MessageReceived(BMessage *message)
 
 
 bool
-Feeder :: QuitRequested()
+Feeder::QuitRequested()
 {
 	return true ;
 }
 
 
 void
-Feeder :: LoadSettings(BMessage *settings)
+Feeder::LoadSettings(BMessage *settings)
 {
 	bool monitorRemovableDevices ;
 	if (settings->FindBool("monitor_removable_devices",
@@ -78,7 +78,7 @@ Feeder :: LoadSettings(BMessage *settings)
 
 
 void
-Feeder :: SaveSettings(BMessage *settings)
+Feeder::SaveSettings(BMessage *settings)
 {
 	if (settings->ReplaceBool("monitor_removable_devices",
 		fMonitorRemovableDevices) != B_OK)
@@ -91,7 +91,7 @@ Feeder :: SaveSettings(BMessage *settings)
 
 
 void
-Feeder :: StartWatching()
+Feeder::StartWatching()
 {
 	BVolume *volume = new BVolume ;
 	
@@ -109,15 +109,15 @@ Feeder :: StartWatching()
 
 
 void
-Feeder :: AddQuery(BVolume *volume)
+Feeder::AddQuery(BVolume *volume)
 {
 	fVolumeList.AddItem((void*)volume) ;
 
 	BQuery *query = new BQuery ;	
 	query->SetVolume(volume) ;
 	
-	query->SetPredicate("name = *.txt") ;
-	//query->SetPredicate("last_modified > %now%") ;
+	// query->SetPredicate("name = *.txt") ;
+	query->SetPredicate("last_modified > %now%") ;
 	query->SetTarget(this) ;
 	
 	if (query->Fetch() == B_OK) {
@@ -129,7 +129,7 @@ Feeder :: AddQuery(BVolume *volume)
 
 
 void
-Feeder :: AddEntry(entry_ref *ref)
+Feeder::AddEntry(entry_ref *ref)
 {
 	fEntryListLocker.Lock() ;
 	BEntry entry(ref) ;
@@ -145,7 +145,7 @@ Feeder :: AddEntry(entry_ref *ref)
 
 
 void
-Feeder :: RemoveQuery(BVolume *volume)
+Feeder::RemoveQuery(BVolume *volume)
 {
 	BQuery *query ;
 	BVolume* iter_volume ;
@@ -170,7 +170,7 @@ Feeder :: RemoveQuery(BVolume *volume)
 
 
 status_t
-Feeder :: GetNextRef(entry_ref *ref)
+Feeder::GetNextRef(entry_ref *ref)
 {
 	fEntryListLocker.Lock() ;
 	if (!ref)
@@ -197,24 +197,24 @@ Feeder :: GetNextRef(entry_ref *ref)
 
 
 BList*
-Feeder :: GetVolumeList()
+Feeder::GetVolumeList()
 {
 	return &fVolumeList ;
 }
 
 
 void
-Feeder :: RetrieveStaticRefs(BQuery *query)
+Feeder::RetrieveStaticRefs(BQuery *query)
 {
 	entry_ref ref ;
 
-	while (query->GetNextRef(&ref) == B_OK)
+	while(query->GetNextRef(&ref) == B_OK)
 		AddEntry(&ref) ;
 }
 
 
 void
-Feeder :: HandleQueryUpdate(BMessage *message)
+Feeder::HandleQueryUpdate(BMessage *message)
 {
 	int32 opcode ;
 	entry_ref *ref ;
@@ -238,7 +238,7 @@ Feeder :: HandleQueryUpdate(BMessage *message)
 
 
 void
-Feeder :: HandleDeviceUpdate(BMessage *message)
+Feeder::HandleDeviceUpdate(BMessage *message)
 {
 	int32 opcode ;
 	BVolume *volume = new BVolume ;
@@ -267,7 +267,7 @@ Feeder :: HandleDeviceUpdate(BMessage *message)
 
 
 bool
-Feeder :: Excluded(entry_ref *ref)
+Feeder::Excluded(entry_ref *ref)
 {
 	BEntry entry(ref) ;
 
@@ -285,7 +285,7 @@ Feeder :: Excluded(entry_ref *ref)
 
 
 bool
-Feeder :: IsHidden(entry_ref *ref)
+Feeder::IsHidden(entry_ref *ref)
 {	
 	if(ref->name[0] == '.')
 		return true ;

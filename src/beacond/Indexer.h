@@ -56,5 +56,4 @@ class Indexer : public BApplication {
 		BList				fIndexWriterList ;
 } ;
 
-
 #endif /* _INDEXER_H_ */

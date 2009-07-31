@@ -6,15 +6,15 @@
  *		Ankur Sethi (get.me.ankur@gmail.com)
  */
 
-#ifndef _SEARCH_APP_H
-#define _SEARCH_APP_H
+#ifndef _SEARCH_APP_H_
+#define _SEARCH_APP_H_
 
 #include "SearchWindow.h"
 
 #include <Application.h>
 
-#define APP_SIGNATURE "application/x-vnd.Haiku-BeaconSearch"
 
+const char* kAppSignature = "application/x-vnd.Haiku-BeaconSearch" ;
 
 class SearchApp : public BApplication {
 	public:
@@ -24,4 +24,4 @@ class SearchApp : public BApplication {
 		SearchWindow	*fSearchWindow ;
 } ;
 
-#endif
+#endif /* _SEARCH_APP_H_ */

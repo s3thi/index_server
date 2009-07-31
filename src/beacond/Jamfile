@@ -2,7 +2,7 @@
 
 SubDir TOP src beacond ;
 
-Main beacond :
+Main index_server :
 	Feeder.cpp
 	Indexer.cpp
 	BeaconIndex.cpp

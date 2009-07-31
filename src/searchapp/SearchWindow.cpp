@@ -6,8 +6,10 @@
  *		Ankur Sethi (get.me.ankur@gmail.com)
  */
 
+#include "BeaconSearcher.h"
 #include "SearchWindow.h"
 
+#include <Alert.h>
 #include <GroupLayout.h>
 #include <GroupLayoutBuilder.h>
 
@@ -26,6 +28,8 @@ SearchWindow::CreateWindow()
 	fSearchButton = new BButton("Search", new BMessage('srch')) ;
 	fSearchField = new BTextControl("", "", new BMessage('srch')) ;
 	fSearchResults = new BListView() ;
+	fScrollView = new BScrollView("SearchResults", fSearchResults, 0,
+		true, true) ;
 
 	SetLayout(new BGroupLayout(B_VERTICAL)) ;
 
@@ -35,7 +39,7 @@ SearchWindow::CreateWindow()
 			.Add(fSearchButton)
 			.SetInsets(5, 5, 5, 5)
 		)
-	.Add(fSearchResults)
+	.Add(fScrollView)
 	.SetInsets(5, 5, 5, 5)
 	) ;
 
@@ -59,5 +63,11 @@ SearchWindow::MessageReceived(BMessage *message)
 void
 SearchWindow::Search()
 {
-	BMessage reply ;
+	fSearchResults->MakeEmpty() ;
+	BeaconSearcher searcher ;
+	searcher.Search(fSearchField->Text()) ;
+	char* path ;
+	while((path = searcher.GetNextHit()) != NULL)
+		fSearchResults->AddItem(new BStringItem(path)) ;
 }
+
