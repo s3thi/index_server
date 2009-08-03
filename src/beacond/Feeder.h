@@ -28,7 +28,8 @@ class Feeder : public BLooper {
 		// Feeder methods
 		void StartWatching() ;
 		void SaveSettings(BMessage *settings) ;
-		status_t GetNextRef(entry_ref *ref) ;
+		status_t GetNextUpdate(entry_ref *ref) ;
+		status_t GetNextRemoval(entry_ref *ref) ;
 		BList* GetVolumeList() ;
 
 	private :
@@ -42,12 +43,14 @@ class Feeder : public BLooper {
 		void HandleDeviceUpdate(BMessage *message) ;
 		bool Excluded(entry_ref *ref) ;
 		bool IsHidden(entry_ref *ref) ;
+		status_t GetNextRef(BList *list, entry_ref *ref) ;
 
 		// Data members
 		bool			fMonitorRemovableDevices ;
 		BVolumeRoster	fVolumeRoster ;
 		BList			fQueryList ;
-		BList			fEntryList ;
+		BList			fIndexQueue ;
+		BList			fDeleteQueue ;
 		BList			fExcludeList ;
 		BList 			fVolumeList ;
 		BLocker			fEntryListLocker ;

@@ -131,6 +131,7 @@ BeaconIndex::Commit()
 		}
 
 		for(int i = 0 ; (path = (char*)fDeleteQueue.ItemAt(i)) != NULL ; i++) {
+			logger->Verbose("Deleting: %s", path) ;
 			term = new Term("path", path) ;
 			reader->deleteDocuments(term) ;
 			delete term ;
@@ -154,6 +155,7 @@ BeaconIndex::Commit()
 	Document *doc ;
 	
 	for(int i = 0 ; (path = (char*)fIndexQueue.ItemAt(i)) != NULL ; i++) {
+		logger->Verbose("Adding: %s", path) ;
 		fileReader = new FileReader(path, "ASCII") ;
 
 		doc = new Document ;

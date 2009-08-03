@@ -60,7 +60,7 @@ Indexer::MessageReceived(BMessage *message)
 			HandleDeviceUpdate(message) ;
 			break ;
 		default :
-			BApplication :: MessageReceived(message) ;
+			BApplication::MessageReceived(message) ;
 	}
 }
 
@@ -103,18 +103,35 @@ Indexer::LoadSettings(BMessage *settings)
 void
 Indexer::UpdateIndex()
 {
+	// TODO: Clean this function up.
 	index_ref *i_ref = NULL ;
 	entry_ref* e_ref = new entry_ref ;
 	dev_t device = -1 ;
-	while (fQueryFeeder->GetNextRef(e_ref) == B_OK) {
-		if (i_ref == NULL || i_ref->device != e_ref->device)
+	
+	while(fQueryFeeder->GetNextUpdate(e_ref) == B_OK) {
+		if(i_ref == NULL || i_ref->device != e_ref->device)
 			i_ref = FindIndexWriterRef(e_ref->device) ;
 
-		if (i_ref != NULL) {
+		if(i_ref != NULL) {
 			i_ref->entryListLocker.Lock() ;
-			i_ref->entryList->AddItem(e_ref) ;
-			i_ref->entryListLocker.Unlock() ;
+			i_ref->indexQueue->AddItem(e_ref) ;
 			e_ref = new entry_ref ;
+			i_ref->entryListLocker.Unlock() ;
+		}
+	}
+
+	i_ref = NULL ;
+	e_ref = new entry_ref ;
+	device = -1 ;
+	while(fQueryFeeder->GetNextRemoval(e_ref) == B_OK) {
+		if(i_ref == NULL || i_ref->device != e_ref->device)
+			i_ref = FindIndexWriterRef(e_ref->device) ;
+
+		if(i_ref != NULL) {
+			i_ref->entryListLocker.Lock() ;
+			i_ref->deleteQueue->AddItem(e_ref) ;
+			e_ref = new entry_ref ;
+			i_ref->entryListLocker.Unlock() ;
 		}
 	}
 
@@ -160,7 +177,8 @@ Indexer::InitIndex(BVolume *volume)
 	} else
 		resume_thread(i_ref->thread) ;
 
-	i_ref->entryList = new BList(10) ;
+	i_ref->indexQueue = new BList(10) ;
+	i_ref->deleteQueue = new BList(10) ;
 	fIndexWriterList.AddItem(i_ref) ;
 	
 	return B_OK ;
@@ -212,20 +230,32 @@ Indexer::FindIndexWriterRef(dev_t device)
 int32 add_document(void *data)
 {
 	index_ref *i_ref = (index_ref*)data ;
-	BList *entryList = i_ref->entryList ;
+	BList *indexQueue = i_ref->indexQueue ;
+	BList *deleteQueue = i_ref->deleteQueue ;
 	entry_ref *iter_ref ;
 	BeaconIndex *index = i_ref->index ;
 
-	while (acquire_sem(i_ref->sem) ==B_OK) {
+	while(acquire_sem(i_ref->sem) == B_OK) {
 		i_ref->entryListLocker.Lock() ;
-		while ((iter_ref = (entry_ref*)entryList->ItemAt(0)) != NULL) {
+		BPath path ;
+		while((iter_ref = (entry_ref*)indexQueue->ItemAt(0)) != NULL) {
+			path.SetTo(iter_ref) ;
 			index->AddDocument(iter_ref) ;
-			entryList->RemoveItem((int32)0) ;
+			indexQueue->RemoveItem((int32)0) ;
 			delete iter_ref ;
 		}
 
+		while((iter_ref = (entry_ref*)deleteQueue->ItemAt(0)) != NULL) {
+			path.SetTo(iter_ref) ;
+			index->RemoveDocument(iter_ref) ;
+			deleteQueue->RemoveItem((int32)0) ;
+			delete iter_ref ;
+		}
+
+		// Changes aren't written to disk unless Commit() is called.
 		index->Commit() ;
-		entryList->MakeEmpty() ;
+		indexQueue->MakeEmpty() ;
+		deleteQueue->MakeEmpty() ;
 		i_ref->entryListLocker.Unlock() ;
 	}
 

@@ -21,7 +21,8 @@ Feeder::Feeder(BHandler *target)
 	: BLooper("feeder"),
 	  fMonitorRemovableDevices(false),
 	  fQueryList(1),
-	  fEntryList(1),
+	  fIndexQueue(10),
+	  fDeleteQueue(10),
 	  fExcludeList(1),
 	  fVolumeList(1),
 	  fUpdateInterval(30 * 1000000)
@@ -138,7 +139,7 @@ Feeder::AddEntry(entry_ref *ref)
 	if(entry.InitCheck() == B_OK && entry.IsFile() && !IsHidden(ref)
 		&& !Excluded(ref)) {
 			ref_ptr = new entry_ref(*ref) ;
-			fEntryList.AddItem((void*)ref_ptr) ;
+			fIndexQueue.AddItem((entry_ref*)ref_ptr) ;
 	}
 	fEntryListLocker.Unlock() ;
 }
@@ -150,11 +151,12 @@ Feeder::RemoveQuery(BVolume *volume)
 	BQuery *query ;
 	BVolume* iter_volume ;
 	
-	for(int i = 0 ; (iter_volume = (BVolume*)fVolumeList.ItemAt(i)) != NULL ; i++) {
-		if (iter_volume->Device() == volume->Device()) {
-			fVolumeList.RemoveItem(iter_volume) ;
-			break ;
-		}
+	for(int i = 0 ; (iter_volume = (BVolume*)fVolumeList.ItemAt(i)) != NULL
+		; i++) {
+			if (iter_volume->Device() == volume->Device()) {
+				fVolumeList.RemoveItem(iter_volume) ;
+				break ;
+			}
 	}
 
 	for (int i = 0 ; (query = (BQuery*)fQueryList.ItemAt(i)) != NULL ; i++) {
@@ -170,29 +172,46 @@ Feeder::RemoveQuery(BVolume *volume)
 
 
 status_t
-Feeder::GetNextRef(entry_ref *ref)
+Feeder::GetNextUpdate(entry_ref *ref)
+{
+	return GetNextRef(&fIndexQueue, ref) ;
+}
+
+
+status_t
+Feeder::GetNextRemoval(entry_ref *ref)
+{
+	return GetNextRef(&fDeleteQueue, ref) ;
+}
+
+
+status_t
+Feeder::GetNextRef(BList* list, entry_ref *ref)
 {
 	fEntryListLocker.Lock() ;
+	status_t ret = B_BAD_VALUE ;
 	if (!ref)
-		return B_BAD_VALUE ;
+		return ret ;
 
 	entry_ref *ref_ptr ;
 	
 	// Copy the next entry_ref into ref and delete the
 	// one stored in the entry list.
-	if (!fEntryList.IsEmpty()) {
-		ref_ptr = (entry_ref *)fEntryList.ItemAt(0) ;
-		fEntryList.RemoveItem((void*)ref_ptr) ;
+	if (!list->IsEmpty()) {
+		ref_ptr = (entry_ref *)list->ItemAt(0) ;
+		list->RemoveItem(ref_ptr) ;
 		*ref = *ref_ptr ;
 		delete ref_ptr ;
 
 		fEntryListLocker.Unlock() ;
-		return B_OK ;
+		ret = B_OK ;
+	} else {
+		ref = NULL ;
+		ret = B_ENTRY_NOT_FOUND ;
 	}
 	
 	fEntryListLocker.Unlock() ;
-	ref = NULL ;
-	return B_ENTRY_NOT_FOUND ;
+	return ret ;
 }
 
 
@@ -232,6 +251,12 @@ Feeder::HandleQueryUpdate(BMessage *message)
 			AddEntry(ref) ;
 			break ;
 		case B_ENTRY_REMOVED:
+			ref = new entry_ref ;
+			message->FindInt32("device", &ref->device) ;
+			message->FindInt64("directory", &ref->directory) ;
+			message->FindString("name", &name) ;
+			ref->set_name(name) ;
+			fDeleteQueue.AddItem((entry_ref*)ref) ;
 			break ;
 	}
 }

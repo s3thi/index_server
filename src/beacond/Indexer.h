@@ -25,7 +25,8 @@ int32 add_document(void *data) ;
 
 struct index_ref {
 	BeaconIndex *index ;
-	BList *entryList ;
+	BList *indexQueue ;
+	BList *deleteQueue ;
 	dev_t device ;
 	thread_id thread ;
 	sem_id sem ;
