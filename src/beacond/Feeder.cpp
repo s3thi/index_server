@@ -132,7 +132,6 @@ Feeder::AddQuery(BVolume *volume)
 void
 Feeder::AddEntry(entry_ref *ref)
 {
-	fEntryListLocker.Lock() ;
 	BEntry entry(ref) ;
 	entry_ref *ref_ptr ;
 
@@ -141,7 +140,6 @@ Feeder::AddEntry(entry_ref *ref)
 			ref_ptr = new entry_ref(*ref) ;
 			fIndexQueue.AddItem((entry_ref*)ref_ptr) ;
 	}
-	fEntryListLocker.Unlock() ;
 }
 
 
@@ -188,7 +186,6 @@ Feeder::GetNextRemoval(entry_ref *ref)
 status_t
 Feeder::GetNextRef(BList* list, entry_ref *ref)
 {
-	fEntryListLocker.Lock() ;
 	status_t ret = B_BAD_VALUE ;
 	if (!ref)
 		return ret ;
@@ -203,14 +200,12 @@ Feeder::GetNextRef(BList* list, entry_ref *ref)
 		*ref = *ref_ptr ;
 		delete ref_ptr ;
 
-		fEntryListLocker.Unlock() ;
 		ret = B_OK ;
 	} else {
 		ref = NULL ;
 		ret = B_ENTRY_NOT_FOUND ;
 	}
 	
-	fEntryListLocker.Unlock() ;
 	return ret ;
 }
 
@@ -276,6 +271,8 @@ Feeder::HandleDeviceUpdate(BMessage *message)
 			message->FindInt32("new device", &device) ;
 			volume->SetTo(device) ;
 			AddQuery(volume) ;
+			// Forward the message to Indexer so that it can spawn
+			// a new thread for volume.
 			be_app->PostMessage(message) ;
 			break ;
 		

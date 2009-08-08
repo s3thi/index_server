@@ -39,13 +39,15 @@ class BeaconIndex {
 		IndexReader* OpenIndexReader() ;
 		bool TranslatorAvailable(const entry_ref *e_ref) ;
 		bool InIndexDirectory(const entry_ref *e_ref) ;
-		char* GetLastModified(const entry_ref *e_ref) ;
+		status_t FirstRun() ;
+		status_t AddAllDocuments(BDirectory *dir) ;
 
 		status_t			fStatus ;
 		StandardAnalyzer	fStandardAnalyzer ;
 		BPath				fIndexPath ;
 		BList				fIndexQueue ;
 		BList				fDeleteQueue ;
+		BVolume				fIndexVolume ;
 } ;
 
 #endif /* _BEACON_INDEX_H */

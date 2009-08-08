@@ -52,12 +52,19 @@ BeaconIndex::SetTo(const BVolume *volume)
 	if (fStatus == B_OK)
 		Close() ;
 	
+	fIndexVolume.SetTo(volume->Device()) ;
 	BDirectory dir ;
 	volume->GetRootDirectory(&dir) ;
 	fIndexPath.SetTo(&dir) ;
 	fIndexPath.Append("index") ;
+
+	if (!IndexReader::indexExists(fIndexPath.Path())) {
+		fStatus = BEACON_FIRST_RUN ;
+		fStatus = FirstRun() ;
+	}
+	else
+		fStatus = fIndexPath.InitCheck() ;
 	
-	fStatus = fIndexPath.InitCheck() ;
 	return fStatus ;
 }
 
@@ -66,12 +73,6 @@ IndexWriter*
 BeaconIndex::OpenIndexWriter()
 {
 	IndexWriter* indexWriter = NULL ;
-	
-	if(create_directory(fIndexPath.Path(), 0777) < B_OK) {
-		logger->Error("Could not create directory: %s", fIndexPath.Path()) ;
-		return indexWriter ;
-	}
-	
 	if (IndexReader::indexExists(fIndexPath.Path())) {
 		try {
 			indexWriter = new IndexWriter(fIndexPath.Path(), &fStandardAnalyzer, 
@@ -117,21 +118,19 @@ BeaconIndex::Commit()
 {
 	char* path ;
 	Term* term ;
-	int count ;
-	
+
 	// First, remove all duplicates (if they exist).
 	IndexReader *reader = OpenIndexReader() ;
-	if(reader == NULL && IndexReader::indexExists(fIndexPath.Path()))
+	if (reader == NULL && IndexReader::indexExists(fIndexPath.Path()))
 		return ;
-	else if (IndexReader::indexExists(fIndexPath.Path())) {
-		for(int i = 0 ; (path = (char*)fIndexQueue.ItemAt(i)) != NULL ; i++) {
+	else if (reader != NULL && IndexReader::indexExists(fIndexPath.Path())) {
+		for (int i = 0 ; (path = (char*)fIndexQueue.ItemAt(i)) != NULL ; i++) {
 			term = new Term("path", path) ;
-			count = reader->deleteDocuments(term) ;
+			reader->deleteDocuments(term) ;
 			delete term ;
 		}
 
-		for(int i = 0 ; (path = (char*)fDeleteQueue.ItemAt(i)) != NULL ; i++) {
-			logger->Verbose("Deleting: %s", path) ;
+		for (int i = 0 ; (path = (char*)fDeleteQueue.ItemAt(i)) != NULL ; i++) {
 			term = new Term("path", path) ;
 			reader->deleteDocuments(term) ;
 			delete term ;
@@ -144,7 +143,7 @@ BeaconIndex::Commit()
 	}
 
 	IndexWriter *writer = OpenIndexWriter() ;
-	if(writer == NULL) {
+	if (writer == NULL) {
 		// TODO: Close and delete this BeaconIndex if opening
 		// the IndexWriter fails.
 		fStatus = B_ERROR ;
@@ -154,8 +153,7 @@ BeaconIndex::Commit()
 	FileReader *fileReader ;
 	Document *doc ;
 	
-	for(int i = 0 ; (path = (char*)fIndexQueue.ItemAt(i)) != NULL ; i++) {
-		logger->Verbose("Adding: %s", path) ;
+	for (int i = 0 ; (path = (char*)fIndexQueue.ItemAt(i)) != NULL ; i++) {
 		fileReader = new FileReader(path, "ASCII") ;
 
 		doc = new Document ;
@@ -211,13 +209,13 @@ BeaconIndex::TranslatorAvailable(const entry_ref *e_ref)
 status_t
 BeaconIndex::AddDocument(const entry_ref *e_ref)
 {
-	if(fStatus != B_OK)
+	if (!(fStatus == B_OK || fStatus == BEACON_FIRST_RUN))
 		return fStatus ;
-	else if(!e_ref)
+	else if (!e_ref)
 		return B_BAD_VALUE ;
-	else if(!TranslatorAvailable(e_ref))
+	else if (!TranslatorAvailable(e_ref))
 		return BEACON_NOT_SUPPORTED ;
-	else if(InIndexDirectory(e_ref))
+	else if (InIndexDirectory(e_ref))
 		return BEACON_FILE_EXCLUDED ;
 	
 	BPath path(e_ref) ;
@@ -232,7 +230,7 @@ BeaconIndex::AddDocument(const entry_ref *e_ref)
 status_t
 BeaconIndex::RemoveDocument(const entry_ref* e_ref)
 {
-	if(!e_ref)
+	if (!e_ref)
 		return B_BAD_VALUE ;
 	
 	BPath path(e_ref) ;
@@ -251,21 +249,49 @@ BeaconIndex::InIndexDirectory(const entry_ref *e_ref)
 	BDirectory indexDir(fIndexPath.Path()) ;
 	if (indexDir.Contains(&entry))
 		return true ;
-	
+
 	return false ;
 }
 
 
-char*
-BeaconIndex::GetLastModified(const entry_ref *e_ref)
+status_t
+BeaconIndex::FirstRun()
 {
-	BEntry entry(e_ref) ;
-	struct stat e_stat ;
-	entry.GetStat(&e_stat) ;
-	time_t lastModified = e_stat.st_mtime ;
-	char* lastModifiedString = new char[11] ;
-	snprintf(lastModifiedString, sizeof(lastModifiedString), "%d",
-		lastModified) ;
+	status_t err ;
+	if ((err = create_directory(fIndexPath.Path(), 0777)) != B_OK) {
+		logger->Error("Could not create directory: %s", fIndexPath.Path()) ;
+		return err ;
+	}
+
+	BDirectory dir ;
+	fIndexVolume.GetRootDirectory(&dir) ;
+	err = AddAllDocuments(&dir) ;
+	Commit() ;
+	return err ;
+}
+
+
+status_t
+BeaconIndex::AddAllDocuments(BDirectory *dir)
+{
+	entry_ref ref ;
+	BEntry entry ;
+	BDirectory d ;
+	status_t err = B_OK ;
 	
-	return lastModifiedString ;
+	while (dir->GetNextRef(&ref) == B_OK) {
+		entry.SetTo(&ref) ;
+		
+		if ((err = entry.InitCheck()) != B_OK)
+			break ;
+
+		if (entry.IsFile())
+			err = AddDocument(&ref) ;
+		else {
+			d.SetTo(&ref) ;
+			AddAllDocuments(&d) ;
+		}
+	}
+
+	return err ;
 }

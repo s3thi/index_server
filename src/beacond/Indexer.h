@@ -45,15 +45,10 @@ class Indexer : public BApplication {
 		void LoadSettings(BMessage *message) ;
 		void UpdateIndex() ;
 		status_t InitIndex(BVolume *volume) ;
-		IndexWriter* OpenIndex(BDirectory *dir) ;
-		bool TranslatorAvailable(entry_ref *ref) ;
 		void HandleDeviceUpdate(BMessage *message) ;
-		void CloseIndex(BVolume *volume) ;
 		index_ref* FindIndexWriterRef(dev_t device) ;
 
 		Feeder 				*fQueryFeeder ;
-		StandardAnalyzer 	fStandardAnalyzer ;
-		FileReader			*fFileReader ;
 		BList				fIndexWriterList ;
 } ;
 

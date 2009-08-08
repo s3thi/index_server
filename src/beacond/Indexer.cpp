@@ -157,7 +157,9 @@ Indexer::InitIndex(BVolume *volume)
 	
 	i_ref->device = volume->Device() ;
 	
-	i_ref->index = new BeaconIndex(volume) ;
+	// A new BeaconIndex is created later in the add_document()
+	// thread.
+	i_ref->index = NULL ;
 	
 	volume->GetName(volumeName) ;
 	if ((i_ref->sem = create_sem(1, volumeName)) < B_NO_ERROR) {
@@ -230,6 +232,9 @@ Indexer::FindIndexWriterRef(dev_t device)
 int32 add_document(void *data)
 {
 	index_ref *i_ref = (index_ref*)data ;
+	BVolume volume(i_ref->device) ;
+	i_ref->index = new BeaconIndex(&volume) ;
+
 	BList *indexQueue = i_ref->indexQueue ;
 	BList *deleteQueue = i_ref->deleteQueue ;
 	entry_ref *iter_ref ;

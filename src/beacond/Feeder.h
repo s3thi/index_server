@@ -53,7 +53,6 @@ class Feeder : public BLooper {
 		BList			fDeleteQueue ;
 		BList			fExcludeList ;
 		BList 			fVolumeList ;
-		BLocker			fEntryListLocker ;
 		bigtime_t		fUpdateInterval ;
 		BMessageRunner	*fMessageRunner ;
 		BHandler		*fTarget ;
