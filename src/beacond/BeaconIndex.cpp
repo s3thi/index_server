@@ -11,7 +11,7 @@
 
 #include <Node.h>
 #include <NodeInfo.h>
-#include <string.h>
+#include <cstring>
 
 using namespace lucene::util ;
 using namespace lucene::search ;
@@ -118,23 +118,36 @@ BeaconIndex::Commit()
 {
 	char* path ;
 	Term* term ;
+	wchar_t *wPath ;
 
 	// First, remove all duplicates (if they exist).
 	IndexReader *reader = OpenIndexReader() ;
 	if (reader == NULL && IndexReader::indexExists(fIndexPath.Path()))
 		return ;
 	else if (reader != NULL && IndexReader::indexExists(fIndexPath.Path())) {
-		for (int i = 0 ; (path = (char*)fIndexQueue.ItemAt(i)) != NULL ; i++) {
-			term = new Term("path", path) ;
+		for (int i = 0 ; (path = (char*)fIndexQueue.ItemAt(i)) != NULL ;
+			i++) {
+			wPath = to_wchar(path) ;
+			if (wPath == NULL)
+				continue ;
+			
+			term = new Term(_T("path"), wPath) ;
 			reader->deleteDocuments(term) ;
 			delete term ;
 		}
 
-		for (int i = 0 ; (path = (char*)fDeleteQueue.ItemAt(i)) != NULL ; i++) {
-			term = new Term("path", path) ;
+		for (int i = 0 ; (path = (char*)fDeleteQueue.ItemAt(i)) != NULL ;
+			i++) {
+			wPath = to_wchar(path) ;
+			if (wPath == NULL)
+				continue ;
+			
+			term = new Term(_T("path"), wPath) ;
 			reader->deleteDocuments(term) ;
+			
 			delete term ;
 			delete path ;
+			delete wPath ;
 		}
 
 		fDeleteQueue.MakeEmpty() ;
@@ -156,10 +169,14 @@ BeaconIndex::Commit()
 	for (int i = 0 ; (path = (char*)fIndexQueue.ItemAt(i)) != NULL ; i++) {
 		fileReader = new FileReader(path, "ASCII") ;
 
+		wPath = to_wchar(path) ;
+		if (wPath == NULL)
+			continue ;
+
 		doc = new Document ;
-		doc->add(*(new Field("contents", fileReader, 
+		doc->add(*(new Field(_T("contents"), fileReader, 
 			Field::STORE_NO | Field::INDEX_TOKENIZED))) ;
-		doc->add(*(new Field ("path", path,
+		doc->add(*(new Field (_T("path"), wPath,
 			Field::STORE_YES | Field::INDEX_UNTOKENIZED))) ;
 
 		try {
@@ -170,6 +187,7 @@ BeaconIndex::Commit()
 
 		delete fileReader ;
 		delete path ;
+		delete wPath ;
 	}
 
 

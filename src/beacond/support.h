@@ -11,6 +11,9 @@
 
 #include "Logger.h"
 
+#include <cstring>
+#include <cstdlib>
+
 #include <Message.h>
 
 enum {
@@ -28,5 +31,6 @@ extern Logger *logger ;
 status_t load_settings(BMessage *message) ;
 status_t save_settings(BMessage *message) ;
 Logger* open_log(DebugLevel level, bool replace) ;
+wchar_t* to_wchar(char *str) ;
 
 #endif /* _SUPPORT_H */

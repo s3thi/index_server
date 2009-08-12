@@ -68,35 +68,41 @@ BeaconSearcher::GetIndexPath(BVolume *volume)
 void
 BeaconSearcher::Search(const char* stringQuery)
 {
+	// CLucene expects wide characters everywhere.
+	int size = strlen(stringQuery) * sizeof(wchar_t) ;
+	wchar_t *wStringQuery = new wchar_t[size] ;
+	if (mbstowcs(wStringQuery, stringQuery, size) == -1)
+		return ;
+
 	IndexSearcher *indexSearcher ;
 	Hits *hits ;
 	Query *luceneQuery ;
 	Document doc ;
 	Field *field ;
-	char *path ;
+	wchar_t *path ;
 	for(int i = 0 ; (indexSearcher = (IndexSearcher*)fSearcherList.ItemAt(i))
 		!= NULL ; i++) {
-			luceneQuery = QueryParser::parse(stringQuery, "contents",
-				&fStandardAnalyzer) ;
+		luceneQuery = QueryParser::parse(wStringQuery, _T("contents"),
+			&fStandardAnalyzer) ;
 
-			hits = indexSearcher->search(luceneQuery) ;
+		hits = indexSearcher->search(luceneQuery) ;
 
-			for(int j = 0 ; j < hits->length() ; j++) {
-				doc = hits->doc(j) ;
-				field = doc.getField("path") ;
-				path = new char[B_PATH_NAME_LENGTH] ;
-				strcpy(path, field->stringValue()) ;
-				fHits.AddItem(path) ;
-			}
+		for(int j = 0 ; j < hits->length() ; j++) {
+			doc = hits->doc(j) ;
+			field = doc.getField(_T("path")) ;
+			path = new wchar_t[B_PATH_NAME_LENGTH * sizeof(wchar_t)] ;
+			wcscpy(path, field->stringValue()) ;
+			fHits.AddItem(path) ;
+		}
 	}
 }
 
 
-char*
+wchar_t*
 BeaconSearcher::GetNextHit()
 {
 	if(fHits.CountItems() != 0) {
-		char* path = (char*)fHits.ItemAt(0) ;
+		wchar_t* path = (wchar_t*)fHits.ItemAt(0) ;
 		fHits.RemoveItem((int32)0) ;
 		return path ;
 	}

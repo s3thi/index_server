@@ -23,7 +23,7 @@ class BeaconSearcher {
 	public:
 		BeaconSearcher() ;
 		~BeaconSearcher() ;
-		char* GetNextHit() ;
+		wchar_t* GetNextHit() ;
 		void Search(const char* query) ;
 	
 	private:

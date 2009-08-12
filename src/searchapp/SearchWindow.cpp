@@ -66,8 +66,12 @@ SearchWindow::Search()
 	fSearchResults->MakeEmpty() ;
 	BeaconSearcher searcher ;
 	searcher.Search(fSearchField->Text()) ;
-	char* path ;
-	while((path = searcher.GetNextHit()) != NULL)
+	wchar_t *wPath ;
+	char *path ;
+	while((wPath = searcher.GetNextHit()) != NULL) {
+		path = new char[wcslen(wPath)*sizeof(wchar_t)] ;
+		wcstombs(path, wPath, wcslen(wPath)*sizeof(wchar_t)) ;
 		fSearchResults->AddItem(new BStringItem(path)) ;
+	}
 }
 
