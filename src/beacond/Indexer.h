@@ -25,8 +25,6 @@ int32 add_document(void *data) ;
 
 struct index_ref {
 	BeaconIndex *index ;
-	BList *indexQueue ;
-	BList *deleteQueue ;
 	dev_t device ;
 	thread_id thread ;
 	sem_id sem ;
@@ -47,8 +45,8 @@ class Indexer : public BApplication {
 		status_t InitIndex(BVolume *volume) ;
 		void HandleDeviceUpdate(BMessage *message) ;
 		index_ref* FindIndexRef(dev_t device) ;
-		void RemoveEntry(entry_ref* e_ref) ;
-		void AddEntry(entry_ref* e_ref) ;
+		void LockAllIndexes() ;
+		void UnlockAllIndexes() ;
 
 		Feeder 				*fQueryFeeder ;
 		BList				fIndexRefList ;

@@ -116,6 +116,8 @@ BeaconIndex::OpenIndexReader()
 void
 BeaconIndex::Commit()
 {
+	logger->Verbose("Calling commit on device %d", fIndexVolume.Device()) ;
+	
 	char* path ;
 	Term* term ;
 	wchar_t *wPath ;
@@ -246,15 +248,21 @@ BeaconIndex::AddDocument(const entry_ref *e_ref)
 status_t
 BeaconIndex::RemoveDocument(const entry_ref* e_ref)
 {
+	status_t ret = B_BAD_VALUE ;
+	
 	if (!e_ref)
-		return B_BAD_VALUE ;
+		return ret ;
 	
 	BPath path(e_ref) ;
+	if ((ret = path.InitCheck()) != B_OK)
+		return ret ;
+
 	char* stringPath = new char[B_PATH_NAME_LENGTH] ;
 	strcpy(stringPath, path.Path()) ;
 	fDeleteQueue.AddItem(stringPath) ;
+	ret = B_OK ;
 	
-	return B_OK ;
+	return ret ;
 }
 
 
@@ -311,4 +319,18 @@ BeaconIndex::AddAllDocuments(BDirectory *dir)
 	}
 
 	return err ;
+}
+
+
+bool
+BeaconIndex::Lock()
+{
+	return fIndexLocker.Lock() ;
+}
+
+
+void
+BeaconIndex::Unlock()
+{
+	fIndexLocker.Unlock() ;
 }

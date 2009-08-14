@@ -11,6 +11,7 @@
 
 #include <Directory.h>
 #include <List.h>
+#include <Locker.h>
 #include <Path.h>
 #include <Volume.h>
 
@@ -32,6 +33,8 @@ class BeaconIndex {
 		void Commit() ;
 		void Close() ;
 		status_t InitCheck() ;
+		bool Lock() ;
+		void Unlock() ;
 
 	private:
 		IndexWriter* OpenIndexWriter() ;
@@ -47,6 +50,7 @@ class BeaconIndex {
 		BList				fIndexQueue ;
 		BList				fDeleteQueue ;
 		BVolume				fIndexVolume ;
+		BLocker				fIndexLocker ;
 } ;
 
 #endif /* _BEACON_INDEX_H */
