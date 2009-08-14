@@ -120,11 +120,11 @@ BeaconIndex::Commit()
 	Term* term ;
 	wchar_t *wPath ;
 
-	// First, remove all duplicates (if they exist).
 	IndexReader *reader = OpenIndexReader() ;
 	if (reader == NULL && IndexReader::indexExists(fIndexPath.Path()))
 		return ;
 	else if (reader != NULL && IndexReader::indexExists(fIndexPath.Path())) {
+		// First, remove all duplicates (if they exist).
 		for (int i = 0 ; (path = (char*)fIndexQueue.ItemAt(i)) != NULL ;
 			i++) {
 			wPath = to_wchar(path) ;
@@ -157,8 +157,6 @@ BeaconIndex::Commit()
 
 	IndexWriter *writer = OpenIndexWriter() ;
 	if (writer == NULL) {
-		// TODO: Close and delete this BeaconIndex if opening
-		// the IndexWriter fails.
 		fStatus = B_ERROR ;
 		return ;
 	}
@@ -275,6 +273,7 @@ BeaconIndex::InIndexDirectory(const entry_ref *e_ref)
 status_t
 BeaconIndex::FirstRun()
 {
+	logger->Always("Calling FirstRun() on device ID %d", fIndexVolume.Device()) ;
 	status_t err ;
 	if ((err = create_directory(fIndexPath.Path(), 0777)) != B_OK) {
 		logger->Error("Could not create directory: %s", fIndexPath.Path()) ;

@@ -30,7 +30,7 @@ struct index_ref {
 	dev_t device ;
 	thread_id thread ;
 	sem_id sem ;
-	BLocker entryListLocker ;
+	BLocker locker ;
 } ;
 
 class Indexer : public BApplication {
@@ -46,10 +46,12 @@ class Indexer : public BApplication {
 		void UpdateIndex() ;
 		status_t InitIndex(BVolume *volume) ;
 		void HandleDeviceUpdate(BMessage *message) ;
-		index_ref* FindIndexWriterRef(dev_t device) ;
+		index_ref* FindIndexRef(dev_t device) ;
+		void RemoveEntry(entry_ref* e_ref) ;
+		void AddEntry(entry_ref* e_ref) ;
 
 		Feeder 				*fQueryFeeder ;
-		BList				fIndexWriterList ;
+		BList				fIndexRefList ;
 } ;
 
 #endif /* _INDEXER_H_ */

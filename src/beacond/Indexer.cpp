@@ -22,7 +22,7 @@ using namespace lucene::document ;
 
 Indexer::Indexer()
 	: BApplication("application/x-vnd.Haiku-BeaconDaemon"),
-	  fIndexWriterList(1)
+	  fIndexRefList(1)
 {
 	logger->Always("Starting application.") ;
 	BMessage settings('sett') ;
@@ -77,11 +77,10 @@ Indexer::QuitRequested()
 
 	index_ref *ref ;
 	status_t exitValue ;
-	for (int i = 0 ; (ref = (index_ref*)fIndexWriterList.ItemAt(i))
+	for (int i = 0 ; (ref = (index_ref*)fIndexRefList.ItemAt(i))
 		!= NULL ; i++) {
 			delete_sem(ref->sem) ;
 			wait_for_thread(ref->thread, &exitValue) ;
-			ref->index->Close() ;
 	}
 
 	return true ;
@@ -103,41 +102,39 @@ Indexer::LoadSettings(BMessage *settings)
 void
 Indexer::UpdateIndex()
 {
-	// TODO: Clean this function up.
 	index_ref *i_ref = NULL ;
 	entry_ref* e_ref = new entry_ref ;
 	dev_t device = -1 ;
 	
+	// Get updates.
 	while(fQueryFeeder->GetNextUpdate(e_ref) == B_OK) {
 		if(i_ref == NULL || i_ref->device != e_ref->device)
-			i_ref = FindIndexWriterRef(e_ref->device) ;
+			i_ref = FindIndexRef(e_ref->device) ;
 
 		if(i_ref != NULL) {
-			i_ref->entryListLocker.Lock() ;
-			i_ref->indexQueue->AddItem(e_ref) ;
+			AddEntry(e_ref) ;
 			e_ref = new entry_ref ;
-			i_ref->entryListLocker.Unlock() ;
 		}
 	}
 
 	i_ref = NULL ;
 	e_ref = new entry_ref ;
 	device = -1 ;
+
+	// Get removals.
 	while(fQueryFeeder->GetNextRemoval(e_ref) == B_OK) {
 		if(i_ref == NULL || i_ref->device != e_ref->device)
-			i_ref = FindIndexWriterRef(e_ref->device) ;
+			i_ref = FindIndexRef(e_ref->device) ;
 
 		if(i_ref != NULL) {
-			i_ref->entryListLocker.Lock() ;
-			i_ref->deleteQueue->AddItem(e_ref) ;
+			RemoveEntry(e_ref) ;
 			e_ref = new entry_ref ;
-			i_ref->entryListLocker.Unlock() ;
 		}
 	}
 
 	// Resume the add_document threads after the list of files has been
 	// updated.
-	for (int i = 0 ; (i_ref = (index_ref*)fIndexWriterList.ItemAt(i))
+	for (int i = 0 ; (i_ref = (index_ref*)fIndexRefList.ItemAt(i))
 		!= NULL ; i++)
 			release_sem(i_ref->sem) ;
 }
@@ -174,14 +171,17 @@ Indexer::InitIndex(BVolume *volume)
 	
 	if ((i_ref->thread = spawn_thread(add_document, volumeName, B_LOW_PRIORITY,
 		i_ref)) < B_NO_ERROR) {
-			delete i_ref ;
-			return i_ref->thread ;
+		delete i_ref ;
+		return i_ref->thread ;
 	} else
 		resume_thread(i_ref->thread) ;
 
-	i_ref->indexQueue = new BList(10) ;
-	i_ref->deleteQueue = new BList(10) ;
-	fIndexWriterList.AddItem(i_ref) ;
+	// Allocate large chunks of memory to the queues
+	// to cut down on frequent memory allocations.
+	i_ref->indexQueue = new BList(50) ;
+	i_ref->deleteQueue = new BList(50) ;
+	
+	fIndexRefList.AddItem(i_ref) ;
 	
 	return B_OK ;
 }
@@ -199,14 +199,16 @@ Indexer::HandleDeviceUpdate(BMessage *message)
 	switch (opcode) {
 		case B_DEVICE_MOUNTED :
 			message->FindInt32("new device", &device) ;
+			logger->Always("Device mounted. Device ID %d", device) ;
 			volume.SetTo(device) ;
 			InitIndex(&volume) ;
 			break ;
 		
 		case B_DEVICE_UNMOUNTED :
 			message->FindInt32("device", &device) ;
-			i_ref = FindIndexWriterRef(device) ;
-			fIndexWriterList.RemoveItem(i_ref) ;
+			logger->Always("Device unmounted. Device ID %d", device) ;
+			i_ref = FindIndexRef(device) ;
+			fIndexRefList.RemoveItem(i_ref) ;
 			kill_thread(i_ref->thread) ;
 			delete_sem(i_ref->sem) ;
 			delete i_ref ;
@@ -216,14 +218,13 @@ Indexer::HandleDeviceUpdate(BMessage *message)
 
 
 index_ref*
-Indexer::FindIndexWriterRef(dev_t device)
+Indexer::FindIndexRef(dev_t device)
 {
-	index_ref *iter_ref ;
-	for (int i = 0 ; (iter_ref = (index_ref*)fIndexWriterList.ItemAt(i))
-		!= NULL ; i++) {
-			if (iter_ref->device == device)
-				return iter_ref ;
-	}
+	index_ref *i_ref ;
+	for (int i = 0 ; (i_ref = (index_ref*)fIndexRefList.ItemAt(i))
+		!= NULL ; i++)
+		if (i_ref->device == device)
+			return i_ref ;
 
 	return NULL ;
 }
@@ -231,38 +232,62 @@ Indexer::FindIndexWriterRef(dev_t device)
 
 int32 add_document(void *data)
 {
+	// Initialize the BeaconIndex.
 	index_ref *i_ref = (index_ref*)data ;
 	BVolume volume(i_ref->device) ;
 	i_ref->index = new BeaconIndex(&volume) ;
 
+	// Making things a little easier.
 	BList *indexQueue = i_ref->indexQueue ;
 	BList *deleteQueue = i_ref->deleteQueue ;
-	entry_ref *iter_ref ;
 	BeaconIndex *index = i_ref->index ;
+	
+	entry_ref *e_ref ;
 
-	while(acquire_sem(i_ref->sem) == B_OK) {
-		i_ref->entryListLocker.Lock() ;
-		BPath path ;
-		while((iter_ref = (entry_ref*)indexQueue->ItemAt(0)) != NULL) {
-			path.SetTo(iter_ref) ;
-			index->AddDocument(iter_ref) ;
-			indexQueue->RemoveItem((int32)0) ;
-			delete iter_ref ;
+	while(acquire_sem(i_ref->sem) == B_OK && index->InitCheck() == B_OK) {
+		i_ref->locker.Lock() ;
+		
+		while((e_ref = (entry_ref*)indexQueue->ItemAt(0)) != NULL) {
+			index->AddDocument(e_ref) ;
+			indexQueue->RemoveItem(0L) ;
+			delete e_ref ;
 		}
 
-		while((iter_ref = (entry_ref*)deleteQueue->ItemAt(0)) != NULL) {
-			path.SetTo(iter_ref) ;
-			index->RemoveDocument(iter_ref) ;
-			deleteQueue->RemoveItem((int32)0) ;
-			delete iter_ref ;
+		while((e_ref = (entry_ref*)deleteQueue->ItemAt(0)) != NULL) {
+			index->RemoveDocument(e_ref) ;
+			deleteQueue->RemoveItem(0L) ;
+			delete e_ref ;
 		}
 
 		// Changes aren't written to disk unless Commit() is called.
 		index->Commit() ;
-		indexQueue->MakeEmpty() ;
-		deleteQueue->MakeEmpty() ;
-		i_ref->entryListLocker.Unlock() ;
+		i_ref->locker.Unlock() ;
 	}
 
 	return B_OK ;
+}
+
+void
+Indexer::RemoveEntry(entry_ref* e_ref)
+{
+	index_ref* i_ref = FindIndexRef(e_ref->device) ;
+
+	if (i_ref != NULL) {
+		i_ref->locker.Lock() ;
+		i_ref->deleteQueue->AddItem(e_ref) ;
+		i_ref->locker.Unlock() ;
+	}
+}
+
+
+void
+Indexer::AddEntry(entry_ref* e_ref)
+{
+	index_ref* i_ref = FindIndexRef(e_ref->device) ;
+
+	if (i_ref != NULL) {
+		i_ref->locker.Lock() ;
+		i_ref->indexQueue->AddItem(e_ref) ;
+		i_ref->locker.Unlock() ;
+	}
 }

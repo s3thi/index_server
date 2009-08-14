@@ -29,7 +29,6 @@ class BeaconIndex {
 		status_t SetTo(const BVolume *volume) ;
 		status_t AddDocument(const entry_ref *e_ref) ;
 		status_t RemoveDocument(const entry_ref *e_ref) ;
-		status_t RemoveDocument(const Document *doc) ;
 		void Commit() ;
 		void Close() ;
 		status_t InitCheck() ;

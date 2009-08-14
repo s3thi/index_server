@@ -19,6 +19,8 @@ const char* kAppSignature = "application/x-vnd.Haiku-BeaconSearch" ;
 class SearchApp : public BApplication {
 	public:
 		SearchApp() ;
+		virtual void MessageReceived(BMessage *message) ;
+		void LaunchFile(BMessage *message) ;
 	
 	private:
 		SearchWindow	*fSearchWindow ;

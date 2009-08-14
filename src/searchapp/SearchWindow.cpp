@@ -10,6 +10,7 @@
 #include "SearchWindow.h"
 
 #include <Alert.h>
+#include <Application.h>
 #include <GroupLayout.h>
 #include <GroupLayoutBuilder.h>
 
@@ -27,7 +28,11 @@ SearchWindow::CreateWindow()
 {
 	fSearchButton = new BButton("Search", new BMessage('srch')) ;
 	fSearchField = new BTextControl("", "", new BMessage('srch')) ;
+	
 	fSearchResults = new BListView() ;
+	fSearchResults->SetInvocationMessage(new BMessage('lnch')) ;
+	fSearchResults->SetTarget(be_app) ;
+
 	fScrollView = new BScrollView("SearchResults", fSearchResults, 0,
 		true, true) ;
 

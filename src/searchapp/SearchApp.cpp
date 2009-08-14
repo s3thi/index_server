@@ -8,6 +8,9 @@
 
 #include "SearchApp.h"
 
+#include <Entry.h>
+#include <Roster.h>
+
 
 SearchApp::SearchApp()
 	: BApplication(kAppSignature)
@@ -16,6 +19,34 @@ SearchApp::SearchApp()
 	fSearchWindow->Show() ;
 }
 
+
+void
+SearchApp::MessageReceived(BMessage *message)
+{
+	switch (message->what) {
+		case 'lnch':
+			LaunchFile(message) ;
+		default :
+			BApplication::MessageReceived(message) ;
+	}
+}
+
+
+void
+SearchApp::LaunchFile(BMessage *message)
+{
+	BListView *searchResults ;
+	int32 index ;
+	
+	message->FindPointer("source", (void**)&searchResults) ;
+	message->FindInt32("index", &index) ;
+	BStringItem *result = (BStringItem*)searchResults->ItemAt(index) ;
+	
+	entry_ref ref ;
+	BEntry entry(result->Text()) ;
+	entry.GetRef(&ref) ;
+	be_roster->Launch(&ref) ;
+}
 
 int main()
 {
