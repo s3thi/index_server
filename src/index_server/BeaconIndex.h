@@ -33,8 +33,6 @@ class BeaconIndex {
 		void Commit() ;
 		void Close() ;
 		status_t InitCheck() ;
-		bool Lock() ;
-		void Unlock() ;
 		dev_t Device() ;
 
 	private:
@@ -49,9 +47,10 @@ class BeaconIndex {
 		StandardAnalyzer	fStandardAnalyzer ;
 		BPath				fIndexPath ;
 		BList				fIndexQueue ;
+		BLocker				fIndexQueueLocker ;
 		BList				fDeleteQueue ;
+		BLocker				fDeleteQueueLocker ;
 		BVolume				fIndexVolume ;
-		BLocker				fIndexLocker ;
 } ;
 
 #endif /* _BEACON_INDEX_H */

@@ -104,8 +104,6 @@ Indexer::UpdateIndex()
 	entry_ref* e_ref = new entry_ref ;
 	dev_t device = -1 ;
 	
-	LockAllIndexes() ;
-
 	// Get updates.
 	while(fQueryFeeder->GetNextUpdate(e_ref) == B_OK) {
 		if(index == NULL || index->Device() != e_ref->device)
@@ -132,8 +130,6 @@ Indexer::UpdateIndex()
 		}
 	}
 
-	UnlockAllIndexes() ;
-	
 	// Call Commit() on all indexes.
 	for (int i = 0 ; (index = (BeaconIndex*)fIndexList.ItemAt(i)) ; i++)
 		index->Commit() ;
@@ -182,21 +178,7 @@ Indexer::FindIndex(dev_t device)
 }
 
 
-void
-Indexer::LockAllIndexes()
+BeaconIndex*
+Indexer::FindIndex(char* path)
 {
-	BeaconIndex* index ;
-	for (int i = 0 ; (index = (BeaconIndex*)fIndexList.ItemAt(i)) != NULL ; 
-		i++)
-		index->Lock() ;
-}
-
-
-void
-Indexer::UnlockAllIndexes()
-{
-	BeaconIndex *index ;
-	for (int i = 0 ; (index = (BeaconIndex*)fIndexList.ItemAt(i)) != NULL ; 
-		i++)
-		index->Unlock() ;
 }

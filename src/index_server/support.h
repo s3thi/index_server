@@ -18,6 +18,7 @@
 
 enum {
 	BEACON_UPDATE_INDEX = 'updt',
+	BEACON_DELETE_ENTRY = 'dlte'
 } ;
 
 enum ErrorCode {

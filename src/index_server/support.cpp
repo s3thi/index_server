@@ -22,7 +22,7 @@ status_t load_settings(BMessage* message)
 	if (message) {
 		BPath settingsPath ;
 		if ((ret = find_directory(B_USER_CONFIG_DIRECTORY, &settingsPath)) == B_OK) {
-			settingsPath.Append("settings/Beacon/main_settings") ;
+			settingsPath.Append("settings/index_server/main_settings") ;
 
 			BFile settingsFile(settingsPath.Path(), B_READ_ONLY) ;
 			if ((ret = settingsFile.InitCheck()) == B_OK) {
@@ -43,7 +43,7 @@ status_t save_settings(BMessage *message)
 	if (message) {
 		BPath settingsPath ;
 		if ((ret = find_directory(B_USER_CONFIG_DIRECTORY, &settingsPath)) == B_OK) {	
-			settingsPath.Append("settings/Beacon") ;
+			settingsPath.Append("settings/index_server") ;
 			if ((ret = create_directory(settingsPath.Path(), 0777)) == B_OK) {
 				settingsPath.Append("main_settings") ;
 
@@ -66,7 +66,7 @@ Logger* open_log(DebugLevel level, bool replace)
 	Logger *logger = NULL ;
 	BPath logPath ;
 	if(find_directory(B_USER_CONFIG_DIRECTORY, &logPath) == B_OK) {
-		logPath.Append("settings/Beacon/") ;
+		logPath.Append("settings/index_server/") ;
 		if(create_directory(logPath.Path(), 0777) == B_OK) {
 			logPath.Append("log.txt") ;
 

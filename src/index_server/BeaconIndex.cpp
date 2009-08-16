@@ -58,6 +58,14 @@ BeaconIndex::SetTo(const BVolume *volume)
 	fIndexPath.SetTo(&dir) ;
 	fIndexPath.Append("index") ;
 
+	// Empty the queues.
+	fIndexQueueLocker.Lock() ;
+	fDeleteQueueLocker.Lock() ;
+	fIndexQueue.MakeEmpty() ;
+	fDeleteQueue.MakeEmpty() ;
+	fDeleteQueueLocker.Unlock() ;
+	fIndexQueueLocker.Unlock() ;
+
 	if (!IndexReader::indexExists(fIndexPath.Path())) {
 		fStatus = BEACON_FIRST_RUN ;
 		fStatus = FirstRun() ;
@@ -78,14 +86,14 @@ BeaconIndex::OpenIndexWriter()
 			indexWriter = new IndexWriter(fIndexPath.Path(), &fStandardAnalyzer, 
 				false) ;
 		} catch (CLuceneError &error) {
-			logger->Error("Failed to open IndexWriter.") ;
-			logger->Error("Try deleting the indexes and running the program again.") ;
-			logger->Error("Failed with error: %s", error.what()) ;
+			logger->Error("Failed to open IndexWriter on device %d",
+				fIndexVolume.Device()) ;
+			logger->Error("Try deleting the indexes.") ;
+			logger->Error("Failed with CLuceneError: %s", error.what()) ;
 		}
-	} else {
+	} else
 		indexWriter = new IndexWriter(fIndexPath.Path(), &fStandardAnalyzer,
 			true) ;
-	}
 	
 	return indexWriter ;
 }
@@ -116,6 +124,9 @@ BeaconIndex::OpenIndexReader()
 void
 BeaconIndex::Commit()
 {
+	fIndexQueueLocker.Lock() ;
+	fDeleteQueueLocker.Lock() ;
+	
 	logger->Verbose("Calling commit on device %d", fIndexVolume.Device()) ;
 	logger->Verbose("%d items in index queue, %d items in delete queue",
 		fIndexQueue.CountItems(), fDeleteQueue.CountItems()) ;
@@ -169,7 +180,7 @@ BeaconIndex::Commit()
 	Document *doc ;
 	
 	for (int i = 0 ; (path = (char*)fIndexQueue.ItemAt(i)) != NULL ; i++) {
-		fileReader = new FileReader(path, "ASCII") ;
+		fileReader = new FileReader(path, "UTF-8") ;
 
 		wPath = to_wchar(path) ;
 		if (wPath == NULL)
@@ -185,6 +196,7 @@ BeaconIndex::Commit()
 			writer->addDocument(doc) ;
 		} catch (CLuceneError &error) {
 			logger->Error("Could not index %s", path) ;
+			logger->Error("Error was: %s", error.what()) ;
 		}
 
 		delete fileReader ;
@@ -196,6 +208,9 @@ BeaconIndex::Commit()
 	fIndexQueue.MakeEmpty() ;
 	writer->close() ;
 	delete writer ;
+
+	fDeleteQueueLocker.Unlock() ;
+	fIndexQueueLocker.Unlock() ;
 }
 
 
@@ -238,11 +253,15 @@ BeaconIndex::AddDocument(const entry_ref *e_ref)
 	else if (InIndexDirectory(e_ref))
 		return BEACON_FILE_EXCLUDED ;
 	
+	fIndexQueueLocker.Lock() ;
+
 	BPath path(e_ref) ;
 	char *str_path = new char[B_PATH_NAME_LENGTH] ;
 	strcpy(str_path, path.Path()) ;
 	fIndexQueue.AddItem(str_path) ;
 	
+	fIndexQueueLocker.Unlock() ;
+
 	return B_OK ;
 }
 
@@ -250,6 +269,8 @@ BeaconIndex::AddDocument(const entry_ref *e_ref)
 status_t
 BeaconIndex::RemoveDocument(const entry_ref* e_ref)
 {
+	fDeleteQueueLocker.Lock() ;
+
 	status_t ret = B_BAD_VALUE ;
 	
 	if (!e_ref)
@@ -264,6 +285,8 @@ BeaconIndex::RemoveDocument(const entry_ref* e_ref)
 	fDeleteQueue.AddItem(stringPath) ;
 	ret = B_OK ;
 	
+	fDeleteQueueLocker.Unlock() ;
+
 	return ret ;
 }
 
@@ -321,20 +344,6 @@ BeaconIndex::AddAllDocuments(BDirectory *dir)
 	}
 
 	return err ;
-}
-
-
-bool
-BeaconIndex::Lock()
-{
-	return fIndexLocker.Lock() ;
-}
-
-
-void
-BeaconIndex::Unlock()
-{
-	fIndexLocker.Unlock() ;
 }
 
 

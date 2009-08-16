@@ -36,8 +36,7 @@ class Indexer : public BApplication {
 		void UpdateIndex() ;
 		void HandleDeviceUpdate(BMessage *message) ;
 		BeaconIndex* FindIndex(dev_t device) ;
-		void LockAllIndexes() ;
-		void UnlockAllIndexes() ;
+		BeaconIndex* FindIndex(char* path) ;
 
 		Feeder 				*fQueryFeeder ;
 		BList				fIndexList ;
