@@ -20,16 +20,8 @@ using namespace lucene::index ;
 using namespace lucene::analysis::standard ;
 using namespace lucene::util ;
 
+#define APP_SIGNATURE "application/x-vnd.Haiku-IndexServer"
 
-int32 add_document(void *data) ;
-
-struct index_ref {
-	BeaconIndex *index ;
-	dev_t device ;
-	thread_id thread ;
-	sem_id sem ;
-	BLocker locker ;
-} ;
 
 class Indexer : public BApplication {
 	public :
@@ -42,14 +34,13 @@ class Indexer : public BApplication {
 		void SaveSettings(BMessage *message) ;
 		void LoadSettings(BMessage *message) ;
 		void UpdateIndex() ;
-		status_t InitIndex(BVolume *volume) ;
 		void HandleDeviceUpdate(BMessage *message) ;
-		index_ref* FindIndexRef(dev_t device) ;
+		BeaconIndex* FindIndex(dev_t device) ;
 		void LockAllIndexes() ;
 		void UnlockAllIndexes() ;
 
 		Feeder 				*fQueryFeeder ;
-		BList				fIndexRefList ;
+		BList				fIndexList ;
 } ;
 
 #endif /* _INDEXER_H_ */

@@ -4,5 +4,5 @@ SubDir TOP src ;
 
 # Rules go here.
 
-SubInclude TOP src beacond ;
+SubInclude TOP src index_server ;
 SubInclude TOP src searchapp ;

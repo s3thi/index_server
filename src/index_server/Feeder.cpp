@@ -33,8 +33,8 @@ Feeder::Feeder(BHandler *target)
 		LoadSettings(&settings) ;
 
 	fTarget = target ;
-	fMessageRunner = new BMessageRunner(fTarget, new BMessage(BEACON_UPDATE_INDEX),
-		fUpdateInterval) ;
+	fMessageRunner = new BMessageRunner(fTarget,
+		new BMessage(BEACON_UPDATE_INDEX), fUpdateInterval) ;
 	
 	Run() ;
 }

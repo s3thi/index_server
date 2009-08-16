@@ -1,6 +1,6 @@
-# Jamfile in $(TOP)/src/beacond
+# Jamfile in $(TOP)/src/index_server
 
-SubDir TOP src beacond ;
+SubDir TOP src index_server ;
 
 Main index_server :
 	Feeder.cpp

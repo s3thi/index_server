@@ -35,6 +35,7 @@ class BeaconIndex {
 		status_t InitCheck() ;
 		bool Lock() ;
 		void Unlock() ;
+		dev_t Device() ;
 
 	private:
 		IndexWriter* OpenIndexWriter() ;

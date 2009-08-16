@@ -117,6 +117,8 @@ void
 BeaconIndex::Commit()
 {
 	logger->Verbose("Calling commit on device %d", fIndexVolume.Device()) ;
+	logger->Verbose("%d items in index queue, %d items in delete queue",
+		fIndexQueue.CountItems(), fDeleteQueue.CountItems()) ;
 	
 	char* path ;
 	Term* term ;
@@ -333,4 +335,11 @@ void
 BeaconIndex::Unlock()
 {
 	fIndexLocker.Unlock() ;
+}
+
+
+dev_t
+BeaconIndex::Device()
+{
+	return fIndexVolume.Device() ;
 }

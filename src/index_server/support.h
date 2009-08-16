@@ -21,9 +21,9 @@ enum {
 } ;
 
 enum ErrorCode {
-	BEACON_NOT_SUPPORTED,
-	BEACON_FILE_EXCLUDED,
-	BEACON_FIRST_RUN
+	BEACON_NOT_SUPPORTED = 'nspt',
+	BEACON_FILE_EXCLUDED = 'excl',
+	BEACON_FIRST_RUN = 'frst'
 } ;
 
 extern Logger *logger ;
