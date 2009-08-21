@@ -32,6 +32,7 @@ extern Logger *logger ;
 status_t load_settings(BMessage *message) ;
 status_t save_settings(BMessage *message) ;
 Logger* open_log(DebugLevel level, bool replace) ;
-wchar_t* to_wchar(char *str) ;
+wchar_t* to_wchar(const char *str) ;
+bool is_hidden(entry_ref *ref) ;
 
 #endif /* _SUPPORT_H */

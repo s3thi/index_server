@@ -13,6 +13,7 @@
 #include <List.h>
 #include <Locker.h>
 #include <Path.h>
+#include <TranslatorRoster.h>
 #include <Volume.h>
 
 #include <CLucene.h>
@@ -23,7 +24,6 @@ using namespace lucene::document ;
 
 class BeaconIndex {
 	public:
-		BeaconIndex() ;
 		BeaconIndex(const BVolume *volume) ;
 		~BeaconIndex() ;
 
@@ -51,6 +51,7 @@ class BeaconIndex {
 		BList				fDeleteQueue ;
 		BLocker				fDeleteQueueLocker ;
 		BVolume				fIndexVolume ;
+		BTranslatorRoster	*fTranslatorRoster ;
 } ;
 
 #endif /* _BEACON_INDEX_H */

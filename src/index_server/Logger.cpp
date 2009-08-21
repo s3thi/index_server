@@ -119,7 +119,7 @@ Logger::WriteTime()
 	time_t unixTime = real_time_clock() ;
 	struct tm *timeInfo = localtime(&unixTime) ;
 
-	fprintf(fLogFile, "[%d:%d:%d] ", timeInfo->tm_hour, timeInfo->tm_min,
+	fprintf(fLogFile, "[%02d:%02d:%02d] ", timeInfo->tm_hour, timeInfo->tm_min,
 		timeInfo->tm_sec) ;
 	fflush(fLogFile) ;
 }

@@ -42,7 +42,6 @@ class Feeder : public BLooper {
 		void HandleQueryUpdate(BMessage *message) ;
 		void HandleDeviceUpdate(BMessage *message) ;
 		bool Excluded(entry_ref *ref) ;
-		bool IsHidden(entry_ref *ref) ;
 		status_t GetNextRef(BList *list, entry_ref *ref) ;
 
 		// Data members

@@ -11,6 +11,9 @@
 
 #include <Node.h>
 #include <NodeInfo.h>
+#include <StringPositionIO.h>
+#include <TranslatorFormats.h>
+
 #include <cstring>
 
 using namespace lucene::util ;
@@ -18,17 +21,12 @@ using namespace lucene::search ;
 using namespace lucene::queryParser ;
 
 
-BeaconIndex::BeaconIndex()
-	: fStatus(B_NO_INIT)
-{
-}
-
-
 BeaconIndex::BeaconIndex(const BVolume *volume)
 	: fStatus(B_NO_INIT),
 	  fIndexQueue(10),
 	  fDeleteQueue(10)
 {
+	fTranslatorRoster = BTranslatorRoster::Default() ;
 	SetTo(volume) ;
 }
 
@@ -177,31 +175,40 @@ BeaconIndex::Commit()
 	}
 	
 	FileReader *fileReader ;
+	BFile inFile, outFile ;
 	Document *doc ;
+	char tempPath[] = "/boot/var/tmp/index_server" ;
 	
 	for (int i = 0 ; (path = (char*)fIndexQueue.ItemAt(i)) != NULL ; i++) {
-		fileReader = new FileReader(path, "UTF-8") ;
+		inFile.SetTo(path, B_READ_ONLY) ;
+		outFile.SetTo(tempPath, B_READ_WRITE | B_CREATE_FILE | B_ERASE_FILE) ;
+		
+		if (fTranslatorRoster->Translate(&inFile, NULL, NULL, &outFile, 'TEXT') == B_OK) {
+			inFile.Unset() ; 
+			outFile.Unset() ;
+			
+			fileReader = new FileReader(tempPath, "UTF-8") ;
 
-		wPath = to_wchar(path) ;
-		if (wPath == NULL)
-			continue ;
+			wPath = to_wchar(path) ;
+			if (wPath == NULL)
+				continue ;
 
-		doc = new Document ;
-		doc->add(*(new Field(_T("contents"), fileReader, 
-			Field::STORE_NO | Field::INDEX_TOKENIZED))) ;
-		doc->add(*(new Field (_T("path"), wPath,
-			Field::STORE_YES | Field::INDEX_UNTOKENIZED))) ;
+			doc = new Document ;
+			doc->add(*(new Field(_T("contents"), fileReader, 
+				Field::STORE_NO | Field::INDEX_TOKENIZED))) ;
+			doc->add(*(new Field (_T("path"), wPath,
+				Field::STORE_YES | Field::INDEX_UNTOKENIZED))) ;
 
-		try {
-			writer->addDocument(doc) ;
-		} catch (CLuceneError &error) {
-			logger->Error("Could not index %s", path) ;
-			logger->Error("Error was: %s", error.what()) ;
+			try {
+				writer->addDocument(doc) ;
+			} catch (CLuceneError &error) {
+				logger->Error("Could not index %s", path) ;
+				logger->Error("%s", error.what()) ;
+			}
+
+			delete path ;
+			delete wPath ;
 		}
-
-		delete fileReader ;
-		delete path ;
-		delete wPath ;
 	}
 
 
@@ -227,14 +234,11 @@ BeaconIndex::TranslatorAvailable(const entry_ref *e_ref)
 	if (!e_ref)
 		return false ;
 
-	// For now, just return true if the file is a plain text file.
-	// Will change in the future when we have more translators.
-	BNode node(e_ref) ;
-	BNodeInfo nodeInfo(&node) ;
+	BFile file(e_ref, B_READ_ONLY) ;
+	translator_info translatorInfo ;
 
-	char MIMEString[B_MIME_TYPE_LENGTH] ;
-	nodeInfo.GetType(MIMEString) ;
-	if (!strcmp(MIMEString, "text/plain"))
+	if (fTranslatorRoster->Identify(&file, NULL,
+		&translatorInfo, 0, NULL, B_TRANSLATOR_TEXT) == B_OK)
 		return true ;
 	
 	return false ;
@@ -334,6 +338,8 @@ BeaconIndex::AddAllDocuments(BDirectory *dir)
 		
 		if ((err = entry.InitCheck()) != B_OK)
 			break ;
+		else if (is_hidden(&ref) || entry.IsSymLink())
+			continue ;
 
 		if (entry.IsFile())
 			err = AddDocument(&ref) ;
@@ -352,3 +358,4 @@ BeaconIndex::Device()
 {
 	return fIndexVolume.Device() ;
 }
+

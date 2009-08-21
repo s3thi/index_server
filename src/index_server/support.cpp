@@ -9,6 +9,7 @@
 #include "support.h"
 
 #include <Directory.h>
+#include <Entry.h>
 #include <File.h>
 #include <FindDirectory.h>
 #include <Message.h>
@@ -78,7 +79,7 @@ Logger* open_log(DebugLevel level, bool replace)
 }
 
 
-wchar_t* to_wchar(char *str)
+wchar_t* to_wchar(const char *str)
 {
 	int size = strlen(str) * sizeof(wchar_t) ;
 	wchar_t *wStr = new wchar_t[size] ;
@@ -88,3 +89,20 @@ wchar_t* to_wchar(char *str)
 	else
 		return wStr ;
 }
+
+bool is_hidden(entry_ref *ref)
+{	
+	if(ref->name[0] == '.')
+		return true ;
+	
+	BEntry entry(ref) ;
+	char name[B_FILE_NAME_LENGTH] ;
+	while (entry.GetParent(&entry) != B_ENTRY_NOT_FOUND) {
+		entry.GetName(name) ;
+		if (strlen(name) > 1 && name[0] == '.')
+			return true ;
+	}
+
+	return false ;
+}
+

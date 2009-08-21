@@ -16,7 +16,9 @@
 #include <Path.h>
 #include <Volume.h>
 
+// #include <CLucene/search/MultiSearcher.h>
 using namespace lucene::analysis::standard ;
+// using namespace lucene::search ;
 
 
 class BeaconSearcher {
@@ -32,6 +34,7 @@ class BeaconSearcher {
 		BList				fSearcherList ;
 		BList				fHits ;
 		StandardAnalyzer	fStandardAnalyzer ;
+//		MultiSearcher		*fMultiSearcher ;
 } ;
 
 #endif /* _BEACON_SEARCHER_H_ */

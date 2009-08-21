@@ -135,7 +135,7 @@ Feeder::AddEntry(entry_ref *ref)
 	BEntry entry(ref) ;
 	entry_ref *ref_ptr ;
 
-	if(entry.InitCheck() == B_OK && entry.IsFile() && !IsHidden(ref)
+	if(entry.InitCheck() == B_OK && entry.IsFile() && !is_hidden(ref)
 		&& !Excluded(ref)) {
 			ref_ptr = new entry_ref(*ref) ;
 			fIndexQueue.AddItem((entry_ref*)ref_ptr) ;
@@ -305,21 +305,4 @@ Feeder::Excluded(entry_ref *ref)
 	return false ;
 }
 
-
-bool
-Feeder::IsHidden(entry_ref *ref)
-{	
-	if(ref->name[0] == '.')
-		return true ;
-	
-	BEntry entry(ref) ;
-	char name[B_FILE_NAME_LENGTH] ;
-	while (entry.GetParent(&entry) != B_ENTRY_NOT_FOUND) {
-		entry.GetName(name) ;
-		if (strlen(name) > 1 && name[0] == '.')
-			return true ;
-	}
-
-	return false ;
-}
 

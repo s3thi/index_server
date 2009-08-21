@@ -25,6 +25,7 @@ BeaconSearcher::BeaconSearcher()
 	BVolume volume ;
 	IndexSearcher *indexSearcher ;
 	char* indexPath ;
+	
 	while(volumeRoster.GetNextVolume(&volume) == B_OK) {
 		indexPath = GetIndexPath(&volume) ;
 		
@@ -80,6 +81,20 @@ BeaconSearcher::Search(const char* stringQuery)
 	Document doc ;
 	Field *field ;
 	wchar_t *path ;
+	
+	/*
+	luceneQuery = QueryParser::parse(wStringQuery, _T("contents"),
+		&fStandardAnalyzer) ;
+
+	hits = fMultiSearcher->search(luceneQuery) ;
+	for(int j = 0 ; j < hits->length() ; j++) {
+		doc = hits->doc(j) ;
+		field = doc.getField(_T("path")) ;
+		path = new wchar_t[B_PATH_NAME_LENGTH * sizeof(wchar_t)] ;
+		wcscpy(path, field->stringValue()) ;
+		fHits.AddItem(path) ;
+	}*/
+	
 	for(int i = 0 ; (indexSearcher = (IndexSearcher*)fSearcherList.ItemAt(i))
 		!= NULL ; i++) {
 		luceneQuery = QueryParser::parse(wStringQuery, _T("contents"),
