@@ -6,3 +6,4 @@ SubDir TOP src ;
 
 SubInclude TOP src index_server ;
 SubInclude TOP src searchapp ;
+SubInclude TOP src indexutil ;

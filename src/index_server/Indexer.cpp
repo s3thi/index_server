@@ -53,10 +53,13 @@ void
 Indexer::MessageReceived(BMessage *message)
 {
 	switch (message->what) {
-		case BEACON_UPDATE_INDEX :
+		case BEACON_UPDATE_INDEX:
 			UpdateIndex() ;
 			break ;
-		case B_NODE_MONITOR :
+		case BEACON_PAUSE:
+			logger->Always("Indexer paused.") ;
+			break ;
+		case B_NODE_MONITOR:
 			HandleDeviceUpdate(message) ;
 			break ;
 		default :
@@ -81,6 +84,7 @@ Indexer::QuitRequested()
 		!= NULL ; i++)
 		index->Close() ;
 
+	logger->Always("Quitting.") ;
 	return true ;
 }
 

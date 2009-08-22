@@ -14,7 +14,7 @@
 #include <Application.h>
 
 
-const char* kAppSignature = "application/x-vnd.Haiku-BeaconSearch" ;
+const char* kAppSignature = "application/x-vnd.Haiku-ContentSearch" ;
 
 class SearchApp : public BApplication {
 	public:

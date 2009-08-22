@@ -20,8 +20,6 @@ using namespace lucene::index ;
 using namespace lucene::analysis::standard ;
 using namespace lucene::util ;
 
-#define APP_SIGNATURE "application/x-vnd.Haiku-IndexServer"
-
 
 class Indexer : public BApplication {
 	public :

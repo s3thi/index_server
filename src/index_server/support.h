@@ -10,22 +10,13 @@
 #define _SUPPORT_H
 
 #include "Logger.h"
+#include "../constants.h"
 
 #include <cstring>
 #include <cstdlib>
 
 #include <Message.h>
 
-enum {
-	BEACON_UPDATE_INDEX = 'updt',
-	BEACON_DELETE_ENTRY = 'dlte'
-} ;
-
-enum ErrorCode {
-	BEACON_NOT_SUPPORTED = 'nspt',
-	BEACON_FILE_EXCLUDED = 'excl',
-	BEACON_FIRST_RUN = 'frst'
-} ;
 
 extern Logger *logger ;
 

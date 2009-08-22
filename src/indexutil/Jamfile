@@ -1,0 +1,7 @@
+# Jamfile in $(TOP)/src/index_server
+
+SubDir TOP src indexutil ;
+
+Main indexutil :
+	indexutil.cpp
+;
